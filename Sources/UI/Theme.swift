@@ -1,0 +1,49 @@
+import SwiftUI
+
+enum Theme {
+
+    // MARK: - Rail geometry
+
+    static let railWidth: CGFloat = 54
+    /// Reach of the concave fillet that ties the rail into the menu bar.
+    static let concaveRadius: CGFloat = 12
+    static let convexRadius: CGFloat = 18
+    static let ringSize: CGFloat = 34
+    static let ringLineWidth: CGFloat = 3.5
+    static let ringToLabel: CGFloat = 5
+    static let itemSpacing: CGFloat = 16
+    static let railTopInset: CGFloat = 10
+    static let railBottomInset: CGFloat = 22
+
+    // MARK: - Bubble
+
+    static let bubbleWidth: CGFloat = 268
+    static let bubbleRadius: CGFloat = 16
+    static let bubbleTailWidth: CGFloat = 11
+    static let bubbleTailHeight: CGFloat = 20
+    /// Gap between the tip of the tail and the edge of the rail.
+    static let bubbleGap: CGFloat = 2
+
+    // MARK: - Colours
+
+    static let surface = Color.black
+    static let track = Color.white.opacity(0.16)
+    static let primaryText = Color.white
+    static let secondaryText = Color.white.opacity(0.62)
+
+    /// In the reference design 21% is green, 52% yellow, 73% red: the colour
+    /// reports the state, not the provider's brand.
+    static func severity(_ fraction: Double,
+                         warning: Double = Preferences.shared.warningThreshold,
+                         critical: Double = Preferences.shared.criticalThreshold) -> Color {
+        if fraction >= critical { return Color(nsColor: .systemRed) }
+        if fraction >= warning { return Color(nsColor: .systemYellow) }
+        return Color(nsColor: .systemGreen)
+    }
+
+    // MARK: - Typography
+
+    static func rounded(_ size: CGFloat, _ weight: Font.Weight = .medium) -> Font {
+        .system(size: size, weight: weight, design: .rounded)
+    }
+}
