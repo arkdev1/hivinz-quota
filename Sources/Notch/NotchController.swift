@@ -15,6 +15,10 @@ final class NotchController {
     private var hideWorkItem: DispatchWorkItem?
     private var showWorkItem: DispatchWorkItem?
     private var metrics = RailMetrics(itemCount: 0)
+    /// The rail height the panel is currently laid out at, so a change of size
+    /// can be recognised — and compensated — rather than silently shifting the
+    /// rail up the screen.
+    private var laidOutHeight: CGFloat = 0
 
     func start() {
         rebuild()
@@ -54,10 +58,20 @@ final class NotchController {
 
         let geometry = targetScreen().map(NotchGeometry.init)
         prefs.notchModeActive = prefs.useNotchAnchor && (geometry?.hasNotch ?? false)
+        let previousHeight = laidOutHeight
         metrics = RailMetrics(itemCount: providers.count,
                               notchMode: prefs.notchModeActive,
                               minimized: prefs.isMinimized)
         if prefs.isMinimized { hideBubble() }
+
+        // Collapsing and expanding should look like the rail shrinking in
+        // place. The panel hangs by its top edge, so without this the top would
+        // stay put and the whole thing would appear to crawl up the screen.
+        if previousHeight > 0, previousHeight != metrics.railHeight, !prefs.notchModeActive {
+            prefs.verticalOffset += (previousHeight - metrics.railHeight) / 2
+        }
+        laidOutHeight = metrics.railHeight
+
         let panel = railPanel ?? makeRailPanel()
         railPanel = panel
         panel.setContentSize(CGSize(width: metrics.railTotalWidth, height: metrics.railHeight))
@@ -65,22 +79,36 @@ final class NotchController {
         if let tracking = panel.contentView as? TrackingHostView {
             configure(tracking)
         }
-        reposition()
+        reposition(animated: previousHeight > 0 && previousHeight != metrics.railHeight)
         panel.orderFrontRegardless()
     }
 
     /// Moves the rail without rebuilding it: this runs on every drag event.
-    private func reposition() {
+    private func reposition(animated: Bool = false) {
         guard let panel = railPanel, let screen = targetScreen() else { return }
         let geometry = NotchGeometry(screen: screen)
         let size = CGSize(width: metrics.railTotalWidth, height: metrics.railHeight)
-        panel.setFrameOrigin(
-            geometry.panelOrigin(panelSize: size,
-                                 railTotalWidth: metrics.railTotalWidth,
-                                 anchorOnRight: prefs.anchorOnRight,
-                                 useNotchAnchor: prefs.useNotchAnchor,
-                                 verticalOffset: prefs.verticalOffset)
-        )
+
+        // Re-clamp: a taller rail restored near the bottom of the screen would
+        // otherwise hang off the edge.
+        prefs.verticalOffset = min(max(prefs.verticalOffset, 0),
+                                   geometry.maxVerticalOffset(railHeight: metrics.railHeight))
+
+        let origin = geometry.panelOrigin(panelSize: size,
+                                          railTotalWidth: metrics.railTotalWidth,
+                                          anchorOnRight: prefs.anchorOnRight,
+                                          useNotchAnchor: prefs.useNotchAnchor,
+                                          verticalOffset: prefs.verticalOffset)
+        let frame = CGRect(origin: origin, size: size)
+        guard animated, panel.isVisible else {
+            panel.setFrame(frame, display: true)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(frame, display: true)
+        }
     }
 
     private func teardown() {

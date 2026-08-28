@@ -44,6 +44,10 @@ final class TrackingHostView: NSView {
 
     private var tracking: NSTrackingArea?
     private var isDragging = false
+    /// Where the press started. A click always jitters by a pixel or two, and
+    /// treating that as a drag would nudge the rail every time it is clicked.
+    private var pressOrigin: NSPoint?
+    private let dragThreshold: CGFloat = 3
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -79,15 +83,20 @@ final class TrackingHostView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         isDragging = false
+        pressOrigin = NSEvent.mouseLocation
     }
 
     override func mouseDragged(with event: NSEvent) {
+        let location = NSEvent.mouseLocation
         if !isDragging {
+            guard let origin = pressOrigin else { return }
+            let dx = location.x - origin.x, dy = location.y - origin.y
+            guard (dx * dx + dy * dy).squareRoot() > dragThreshold else { return }
             isDragging = true
             onHover(nil)
             onDragBegan()
         }
-        onDrag(NSEvent.mouseLocation)
+        onDrag(location)
     }
 
     override func mouseUp(with event: NSEvent) {
