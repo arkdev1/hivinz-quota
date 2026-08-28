@@ -1,61 +1,47 @@
 import SwiftUI
 
-/// The vertical tab that hangs off the menu bar.
+/// The vertical tab that leans against a screen edge.
 ///
-/// Exactly one fillet is **concave**: the top one on the inner side, where the
-/// shape widens towards the menu bar instead of rounding inwards. That is what
-/// makes the tab look poured out of the screen edge, the way the notch corners
-/// do. The outer side sits flush against the edge, so its top corner is left
-/// square — it merges into the menu bar. At the bottom, where the shape ends
-/// free over the wallpaper, the corners are rounded normally.
+/// The attachment is to the *side* edge, not to the menu bar: the menu bar is
+/// light, so a black shape flaring into it reads as a hook into nothing. Against
+/// the side edge the geometry works at any height — the two **concave** fillets
+/// sit at the top and bottom of the outer side, melting the tab into the edge
+/// the way the notch corners melt into the display, while the inner corners are
+/// rounded normally. One shape, wherever the rail is dragged.
 struct NotchRailShape: Shape {
 
     var concave: CGFloat = Theme.concaveRadius
     var convex: CGFloat = Theme.convexRadius
-    /// With `false` the shape is mirrored: the tab hangs off the left edge.
-    var flaresLeft: Bool = true
-    /// Whether the tab is still touching the menu bar. Dragged away from it there
-    /// is nothing left to merge into, and the concave fillet reads as a stray
-    /// hook — so a free-floating rail becomes a plain rounded pill.
-    var attached: Bool = true
+    /// `true` when the rail leans on the right edge; mirrored for the left.
+    var attachedRight: Bool = true
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let c = min(concave, rect.width / 3)
-        let v = min(convex, rect.width / 2, rect.height / 3)
+        let c = min(concave, rect.height / 4)
+        let v = min(convex, rect.width / 2, (rect.height - 2 * c) / 2)
 
-        guard attached else {
-            // Drop the strip the fillet would have reached into, so the pill
-            // stays centred on the rings instead of sitting off to one side.
-            let body = CGRect(x: rect.minX + c, y: rect.minY,
-                              width: rect.width - c, height: rect.height)
-            var pill = Path()
-            pill.addRoundedRect(in: body,
-                                cornerSize: CGSize(width: v, height: v),
-                                style: .continuous)
-            return flaresLeft ? pill : pill.applying(
+        // Drawn right-attached: the outer side (maxX) is dead straight and flush
+        // with the screen edge; each end tapers into it through a concave quad.
+        path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX - c, y: rect.minY + c),
+                          control: CGPoint(x: rect.maxX - c, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX + v, y: rect.minY + c))
+        path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.minY + c + v),
+                          control: CGPoint(x: rect.minX, y: rect.minY + c))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - c - v))
+        path.addQuadCurve(to: CGPoint(x: rect.minX + v, y: rect.maxY - c),
+                          control: CGPoint(x: rect.minX, y: rect.maxY - c))
+        path.addLine(to: CGPoint(x: rect.maxX - c, y: rect.maxY - c))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.maxY),
+                          control: CGPoint(x: rect.maxX - c, y: rect.maxY))
+        path.closeSubpath() // straight run back up the screen edge
+
+        guard attachedRight else {
+            return path.applying(
                 CGAffineTransform(scaleX: -1, y: 1).translatedBy(x: -rect.width, y: 0)
             )
         }
-
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        // The concave fillet: the shape widens towards the menu bar.
-        path.addQuadCurve(to: CGPoint(x: rect.minX + c, y: rect.minY + c),
-                          control: CGPoint(x: rect.minX + c, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.minX + c, y: rect.maxY - v))
-        path.addQuadCurve(to: CGPoint(x: rect.minX + c + v, y: rect.maxY),
-                          control: CGPoint(x: rect.minX + c, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX - v, y: rect.maxY))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.maxY - v),
-                          control: CGPoint(x: rect.maxX, y: rect.maxY))
-        // The outer side runs straight up to the top, where it meets the menu bar.
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        path.closeSubpath()
-
-        guard !flaresLeft else { return path }
-        return path.applying(
-            CGAffineTransform(scaleX: -1, y: 1).translatedBy(x: -rect.width, y: 0)
-        )
+        return path
     }
 }
 

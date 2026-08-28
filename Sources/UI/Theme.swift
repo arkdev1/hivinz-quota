@@ -5,9 +5,9 @@ enum Theme {
     // MARK: - Rail geometry
 
     static let railWidth: CGFloat = 54
-    /// Reach of the concave fillet that ties the rail into the menu bar.
-    static let concaveRadius: CGFloat = 12
-    static let convexRadius: CGFloat = 18
+    /// Reach of the concave fillets that melt the rail into the screen edge.
+    static let concaveRadius: CGFloat = 14
+    static let convexRadius: CGFloat = 24
     static let ringSize: CGFloat = 34
     static let ringLineWidth: CGFloat = 3.5
     static let ringToLabel: CGFloat = 5

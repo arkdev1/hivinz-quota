@@ -186,8 +186,8 @@ final class NotchController {
         let ringCenterY = railTop - metrics.ringCenterY(index)
 
         let tipX = prefs.anchorOnRight
-            ? rail.frame.minX + Theme.concaveRadius - Theme.bubbleGap
-            : rail.frame.maxX - Theme.concaveRadius + Theme.bubbleGap
+            ? rail.frame.minX - Theme.bubbleGap
+            : rail.frame.maxX + Theme.bubbleGap
         let originX = prefs.anchorOnRight ? tipX - width : tipX
 
         // The bubble centres on its ring, but never rides up over the menu bar

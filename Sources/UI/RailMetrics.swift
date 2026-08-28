@@ -10,19 +10,24 @@ struct RailMetrics {
     var labelHeight: CGFloat { 16 }
     var itemHeight: CGFloat { Theme.ringSize + Theme.ringToLabel + labelHeight }
 
+    /// The concave fillets take vertical room at both ends of the shape, so the
+    /// content starts below the top one.
+    var contentTop: CGFloat { Theme.concaveRadius + Theme.railTopInset }
+
     var railHeight: CGFloat {
-        guard itemCount > 0 else { return Theme.railTopInset + Theme.railBottomInset }
-        return Theme.railTopInset
+        guard itemCount > 0 else { return contentTop + Theme.railBottomInset }
+        return contentTop
             + CGFloat(itemCount) * itemHeight
             + CGFloat(itemCount - 1) * Theme.itemSpacing
             + Theme.railBottomInset
+            + Theme.concaveRadius
     }
 
-    var railTotalWidth: CGFloat { Theme.railWidth + Theme.concaveRadius }
+    var railTotalWidth: CGFloat { Theme.railWidth }
 
     /// Vertical centre of ring i, measured from the top of the rail.
     func ringCenterY(_ index: Int) -> CGFloat {
-        Theme.railTopInset
+        contentTop
             + CGFloat(index) * (itemHeight + Theme.itemSpacing)
             + Theme.ringSize / 2
     }
@@ -31,7 +36,7 @@ struct RailMetrics {
     /// running the cursor down the rail swaps the bubble's contents without it
     /// ever blinking out in between.
     func rowBand(_ index: Int) -> ClosedRange<CGFloat> {
-        let top = Theme.railTopInset + CGFloat(index) * (itemHeight + Theme.itemSpacing)
+        let top = contentTop + CGFloat(index) * (itemHeight + Theme.itemSpacing)
         let lower = index == 0 ? 0 : top - Theme.itemSpacing / 2
         let upper = index == itemCount - 1 ? railHeight : top + itemHeight + Theme.itemSpacing / 2
         return lower...upper

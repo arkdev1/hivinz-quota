@@ -40,14 +40,10 @@ struct NotchRailView: View {
                 .scaleEffect(hover.hoveredIndex == index ? 1.06 : 1)
             }
         }
-        .padding(.top, Theme.railTopInset)
-        .frame(width: Theme.railWidth, alignment: .top)
-        .padding(.leading, prefs.anchorOnRight ? Theme.concaveRadius : 0)
-        .padding(.trailing, prefs.anchorOnRight ? 0 : Theme.concaveRadius)
+        .padding(.top, metrics.contentTop)
         .frame(width: metrics.railTotalWidth, height: metrics.railHeight, alignment: .top)
         .background(
-            NotchRailShape(flaresLeft: prefs.anchorOnRight,
-                           attached: prefs.verticalOffset < 0.5)
+            NotchRailShape(attachedRight: prefs.anchorOnRight)
                 .fill(Theme.surface)
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: hover.hoveredIndex)

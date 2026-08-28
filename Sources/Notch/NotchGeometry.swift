@@ -49,12 +49,11 @@ struct NotchGeometry {
                      anchorOnRight: Bool, useNotchAnchor: Bool,
                      verticalOffset: CGFloat) -> CGPoint {
         let y = topEdge - verticalOffset - panelSize.height
-        let c = Theme.concaveRadius
 
         if useNotchAnchor, let notch = notchRect {
             let x = anchorOnRight
-                ? notch.maxX - c - panelSize.width + railTotalWidth
-                : notch.minX + c - railTotalWidth
+                ? notch.maxX - panelSize.width
+                : notch.minX
             return CGPoint(x: x, y: y)
         }
 
