@@ -14,11 +14,29 @@ struct NotchRailShape: Shape {
     var convex: CGFloat = Theme.convexRadius
     /// With `false` the shape is mirrored: the tab hangs off the left edge.
     var flaresLeft: Bool = true
+    /// Whether the tab is still touching the menu bar. Dragged away from it there
+    /// is nothing left to merge into, and the concave fillet reads as a stray
+    /// hook — so a free-floating rail becomes a plain rounded pill.
+    var attached: Bool = true
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let c = min(concave, rect.width / 3)
         let v = min(convex, rect.width / 2, rect.height / 3)
+
+        guard attached else {
+            // Drop the strip the fillet would have reached into, so the pill
+            // stays centred on the rings instead of sitting off to one side.
+            let body = CGRect(x: rect.minX + c, y: rect.minY,
+                              width: rect.width - c, height: rect.height)
+            var pill = Path()
+            pill.addRoundedRect(in: body,
+                                cornerSize: CGSize(width: v, height: v),
+                                style: .continuous)
+            return flaresLeft ? pill : pill.applying(
+                CGAffineTransform(scaleX: -1, y: 1).translatedBy(x: -rect.width, y: 0)
+            )
+        }
 
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))
         // The concave fillet: the shape widens towards the menu bar.

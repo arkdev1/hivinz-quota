@@ -23,6 +23,11 @@ enum Theme {
     static let bubbleTailHeight: CGFloat = 20
     /// Gap between the tip of the tail and the edge of the rail.
     static let bubbleGap: CGFloat = 2
+    /// Slack the bubble panel keeps around its shape. A window clips whatever it
+    /// draws, so without this margin the drop shadow gets sliced off square at
+    /// the panel edge instead of fading out.
+    static let bubbleShadowPad: CGFloat = 24
+    static let shadowRadius: CGFloat = 14
 
     // MARK: - Colours
 

@@ -36,7 +36,7 @@ struct UsageBubbleView: View {
         .background(
             BubbleShape(tailCenterY: tailCenterY, tailOnRight: tailOnRight)
                 .fill(Theme.surface)
-                .shadow(color: .black.opacity(0.45), radius: 14, y: 6)
+                .shadow(color: .black.opacity(0.5), radius: Theme.shadowRadius, y: 6)
                 // The bubble spans the body plus the tail, which juts out to the side.
                 .frame(width: Theme.bubbleWidth + Theme.bubbleTailWidth)
                 .offset(x: tailOnRight ? Theme.bubbleTailWidth / 2 : -Theme.bubbleTailWidth / 2)

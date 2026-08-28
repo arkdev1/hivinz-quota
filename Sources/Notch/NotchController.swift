@@ -179,6 +179,7 @@ final class NotchController {
         let windowCount = store.state(for: provider.id).snapshot?.windows.count ?? 1
         let height = metrics.bubbleHeight(windowCount: windowCount)
         let width = Theme.bubbleWidth + Theme.bubbleTailWidth
+        let pad = Theme.bubbleShadowPad
 
         // Ring centre in screen coordinates.
         let railTop = rail.frame.maxY
@@ -189,8 +190,12 @@ final class NotchController {
             : rail.frame.maxX - Theme.concaveRadius + Theme.bubbleGap
         let originX = prefs.anchorOnRight ? tipX - width : tipX
 
+        // The bubble centres on its ring, but never rides up over the menu bar
+        // and never falls off the bottom. Clamping to the rail's own top instead
+        // would shove it downwards whenever the rail has been dragged away.
         let lowest = screen.visibleFrame.minY + 8
-        let highest = max(railTop - height, lowest)
+        let ceiling = NotchGeometry(screen: screen).topEdge
+        let highest = max(ceiling - height, lowest)
         let originY = min(max(ringCenterY - height / 2, lowest), highest)
         let tailCenterY = (originY + height) - ringCenterY
 
@@ -199,8 +204,10 @@ final class NotchController {
                                       height: height,
                                       tailOnRight: prefs.anchorOnRight)
 
-        let panel = bubblePanel ?? NotchPanel(size: CGSize(width: width, height: height),
-                                              interactive: false)
+        let panel = bubblePanel ?? NotchPanel(
+            size: CGSize(width: width + pad * 2, height: height + pad * 2),
+            interactive: false
+        )
         bubblePanel = panel
 
         if let hosting = panel.contentView as? NSHostingView<NotchBubbleView> {
@@ -209,7 +216,11 @@ final class NotchController {
             panel.contentView = NSHostingView(rootView: content)
         }
 
-        panel.setFrame(CGRect(x: originX, y: originY, width: width, height: height), display: true)
+        // The panel is inflated on every side so the shadow has somewhere to go;
+        // the shape itself still lands exactly where the geometry above put it.
+        panel.setFrame(CGRect(x: originX - pad, y: originY - pad,
+                              width: width + pad * 2, height: height + pad * 2),
+                       display: true)
         panel.orderFrontRegardless()
     }
 
@@ -241,6 +252,7 @@ struct NotchBubbleView: View {
                             tailOnRight: tailOnRight,
                             now: context.date)
         }
+        .padding(Theme.bubbleShadowPad)   // room for the shadow to fade out
         .allowsHitTesting(false)
     }
 }
