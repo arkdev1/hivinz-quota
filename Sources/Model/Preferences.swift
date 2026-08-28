@@ -26,6 +26,10 @@ final class Preferences {
     /// Bumped when the system appearance flips, so views reading Theme colours
     /// under the "system" setting know to repaint. Never persisted.
     var appearanceTick: Int = 0
+    /// Whether the rail is actually hanging from the notch right now: the
+    /// preference asks for it, the controller confirms the screen has one.
+    /// Derived state, set by the controller, never persisted.
+    var notchModeActive: Bool = false
 
     /// Allow estimating usage by reading local CLI transcripts when a provider's
     /// API path is unavailable. Off by default: it costs a filesystem scan and

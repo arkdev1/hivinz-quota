@@ -6,6 +6,9 @@ import CoreGraphics
 struct RailMetrics {
 
     let itemCount: Int
+    /// Hanging from the notch: side flares add width instead of the top ones
+    /// adding height at the outer edge.
+    var notchMode: Bool = false
 
     var labelHeight: CGFloat { 16 }
     var itemHeight: CGFloat { Theme.ringSize + Theme.ringToLabel + labelHeight }
@@ -23,7 +26,12 @@ struct RailMetrics {
             + Theme.concaveRadius
     }
 
-    var railTotalWidth: CGFloat { Theme.railWidth }
+    var railTotalWidth: CGFloat {
+        notchMode ? Theme.railWidth + 2 * Theme.concaveRadius : Theme.railWidth
+    }
+
+    /// Horizontal inset of the body inside the panel.
+    var sideInset: CGFloat { notchMode ? Theme.concaveRadius : 0 }
 
     /// Vertical centre of ring i, measured from the top of the rail.
     func ringCenterY(_ index: Int) -> CGFloat {

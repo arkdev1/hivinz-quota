@@ -48,15 +48,18 @@ struct NotchGeometry {
     func panelOrigin(panelSize: CGSize, railTotalWidth: CGFloat,
                      anchorOnRight: Bool, useNotchAnchor: Bool,
                      verticalOffset: CGFloat) -> CGPoint {
-        let y = topEdge - verticalOffset - panelSize.height
-
         if useNotchAnchor, let notch = notchRect {
+            // Hanging from the notch: always touching it — a dragged offset
+            // would leave the flares merging into thin air. The body's right
+            // side continues the notch's right edge; the flares overhang by
+            // their reach on both sides.
             let x = anchorOnRight
-                ? notch.maxX - panelSize.width
-                : notch.minX
-            return CGPoint(x: x, y: y)
+                ? notch.maxX + Theme.concaveRadius - panelSize.width
+                : notch.minX - Theme.concaveRadius
+            return CGPoint(x: x, y: topEdge - panelSize.height)
         }
 
+        let y = topEdge - verticalOffset - panelSize.height
         let x = anchorOnRight
             ? screen.frame.maxX - panelSize.width
             : screen.frame.minX

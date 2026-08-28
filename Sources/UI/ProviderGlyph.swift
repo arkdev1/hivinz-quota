@@ -10,7 +10,8 @@ struct ProviderGlyph: View {
         Group {
             switch kind {
             case .anthropic: BurstGlyph(spokes: 12).fill(Theme.primaryText)
-            case .openai:    KnotGlyph().stroke(Theme.primaryText, lineWidth: 1.35)
+            case .openai:    KnotGlyph().stroke(Theme.primaryText,
+                                 style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
             case .gemini:    SparkGlyph().fill(Theme.primaryText)
             case .terminal:  Image(systemName: "chevron.left.forwardslash.chevron.right")
                                 .font(.system(size: size * 0.72, weight: .semibold))
@@ -56,13 +57,15 @@ struct BurstGlyph: Shape {
     }
 }
 
-/// Rotated ellipses: the interlaced-knot silhouette.
+/// Rotated ellipses: the interlaced-knot silhouette. Petal proportions are
+/// tuned for legibility at ring size — narrower petals and one extra rotation
+/// turn into lace at 15pt, so three wide ellipses it is.
 struct KnotGlyph: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let r = min(rect.width, rect.height) / 2
-        let petal = CGRect(x: -r * 0.34, y: -r, width: r * 0.68, height: r * 2)
+        let petal = CGRect(x: -r * 0.42, y: -r, width: r * 0.84, height: r * 2)
 
         for i in 0..<3 {
             let angle: CGFloat = CGFloat(i) * .pi / 3
@@ -80,7 +83,7 @@ struct SparkGlyph: Shape {
         var path = Path()
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let r = min(rect.width, rect.height) / 2
-        let waist = r * 0.22
+        let waist = r * 0.26
 
         let tips = [
             CGPoint(x: center.x, y: center.y - r),

@@ -21,7 +21,8 @@ struct NotchRailView: View {
 
     var body: some View {
         let providers = prefs.enabledProviders
-        let metrics = RailMetrics(itemCount: providers.count)
+        let metrics = RailMetrics(itemCount: providers.count,
+                                  notchMode: prefs.notchModeActive)
 
         VStack(spacing: Theme.itemSpacing) {
             ForEach(Array(providers.enumerated()), id: \.element.id) { pair in
@@ -43,7 +44,8 @@ struct NotchRailView: View {
         .padding(.top, metrics.contentTop)
         .frame(width: metrics.railTotalWidth, height: metrics.railHeight, alignment: .top)
         .background(
-            NotchRailShape(attachedRight: prefs.anchorOnRight)
+            NotchRailShape(attachment: prefs.notchModeActive ? .notch
+                            : (prefs.anchorOnRight ? .rightEdge : .leftEdge))
                 .fill(Theme.surface)
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: hover.hoveredIndex)

@@ -12,7 +12,14 @@ struct QuotaApp: App {
             MenuBarContent()
         } label: {
             let critical = store.mostCritical
-            Image(systemName: symbol(for: critical?.window.clampedFraction))
+            if let window = critical?.window {
+                // Icon plus figure: the number is the whole point of the app,
+                // so it belongs in the menu bar too.
+                Image(systemName: symbol(for: window.clampedFraction))
+                Text(window.percentText)
+            } else {
+                Image(systemName: symbol(for: nil))
+            }
         }
         .menuBarExtraStyle(.menu)
 

@@ -51,7 +51,10 @@ final class NotchController {
             return
         }
 
-        metrics = RailMetrics(itemCount: providers.count)
+        let geometry = targetScreen().map(NotchGeometry.init)
+        prefs.notchModeActive = prefs.useNotchAnchor && (geometry?.hasNotch ?? false)
+        metrics = RailMetrics(itemCount: providers.count,
+                              notchMode: prefs.notchModeActive)
         let panel = railPanel ?? makeRailPanel()
         railPanel = panel
         panel.setContentSize(CGSize(width: metrics.railTotalWidth, height: metrics.railHeight))
@@ -176,6 +179,9 @@ final class NotchController {
 
     private func drag(to location: NSPoint) {
         guard let screen = targetScreen() else { return }
+        // Dragging a notch-hung rail unhooks it: from there it behaves like an
+        // edge-attached rail again. rebuild() follows via the preference change.
+        if prefs.useNotchAnchor { prefs.useNotchAnchor = false }
         let geometry = NotchGeometry(screen: screen)
         let grab = dragGrabOffset ?? metrics.railHeight / 2
 
@@ -217,8 +223,8 @@ final class NotchController {
         let ringCenterY = railTop - metrics.ringCenterY(index)
 
         let tipX = prefs.anchorOnRight
-            ? rail.frame.minX - Theme.bubbleGap
-            : rail.frame.maxX + Theme.bubbleGap
+            ? rail.frame.minX + metrics.sideInset - Theme.bubbleGap
+            : rail.frame.maxX - metrics.sideInset + Theme.bubbleGap
         let originX = prefs.anchorOnRight ? tipX - width : tipX
 
         // The bubble centres on its ring, but never rides up over the menu bar
