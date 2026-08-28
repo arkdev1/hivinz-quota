@@ -24,7 +24,9 @@ struct NotchRailShape: Shape {
     func path(in rect: CGRect) -> Path {
         if attachment == .notch { return notchPath(in: rect) }
         var path = Path()
-        let c = min(concave, rect.height / 4)
+        // The flare scales with the shape's width: on the minimized stub a
+        // full-size fillet spans nearly the whole body and reads as a spool.
+        let c = min(concave, rect.width * 0.55, rect.height / 4)
         let v = min(convex, rect.width / 2, (rect.height - 2 * c) / 2)
 
         // Drawn right-attached: the outer side (maxX) is dead straight and flush
