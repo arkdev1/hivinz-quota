@@ -13,6 +13,7 @@ final class NotchController {
     private let store = UsageStore.shared
 
     private var hideWorkItem: DispatchWorkItem?
+    private var showWorkItem: DispatchWorkItem?
     private var metrics = RailMetrics(itemCount: 0)
 
     func start() {
@@ -126,6 +127,7 @@ final class NotchController {
     private func handleHover(_ index: Int?) {
         hideWorkItem?.cancel()
         guard let index, index < prefs.enabledProviders.count else {
+            showWorkItem?.cancel()
             // Leaving the rail doesn't close the bubble by itself: the pointer
             // may be on its way over there. Remember where it left, and let the
             // safe-triangle monitor decide.
@@ -134,7 +136,18 @@ final class NotchController {
             return
         }
         hover.hoveredIndex = index
-        showBubble(for: index)
+
+        // Already open: switching rings is instant. Opening fresh waits a beat,
+        // so sweeping the pointer across the rail doesn't flash the bubble.
+        if bubblePanel?.isVisible == true {
+            showWorkItem?.cancel()
+            showBubble(for: index)
+        } else {
+            showWorkItem?.cancel()
+            let work = DispatchWorkItem { [weak self] in self?.showBubble(for: index) }
+            showWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
+        }
     }
 
     private func scheduleHide(after delay: TimeInterval) {
@@ -154,6 +167,7 @@ final class NotchController {
     private var dragGrabOffset: CGFloat?
 
     private func beginDrag() {
+        showWorkItem?.cancel()
         hideBubble()
         hover.hoveredIndex = nil
         guard let panel = railPanel else { return }
@@ -270,7 +284,7 @@ final class NotchController {
                     self.hideWorkItem?.cancel()
                     self.triangleApex = nil
                 } else {
-                    self.scheduleHide(after: 0.25)
+                    self.scheduleHide(after: 0.3)
                 }
             }
         }
@@ -339,12 +353,12 @@ final class NotchController {
             if let deadline = triangleDeadline {
                 if Date() > deadline { scheduleHide(after: 0) }
             } else {
-                triangleDeadline = Date().addingTimeInterval(0.9)
+                triangleDeadline = Date().addingTimeInterval(1.2)
                 hideWorkItem?.cancel()
             }
             return
         }
-        scheduleHide(after: 0.1)
+        scheduleHide(after: 0.15)
     }
 
     /// The two corners of the bubble on the side facing the rail.

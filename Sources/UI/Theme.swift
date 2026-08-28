@@ -22,10 +22,12 @@ enum Theme {
 
     static let bubbleWidth: CGFloat = 268
     static let bubbleRadius: CGFloat = 16
-    static let bubbleTailWidth: CGFloat = 11
-    static let bubbleTailHeight: CGFloat = 20
-    /// Gap between the tip of the tail and the edge of the rail.
-    static let bubbleGap: CGFloat = 2
+    static let bubbleTailWidth: CGFloat = 12
+    static let bubbleTailHeight: CGFloat = 18
+    /// Gap between the tip of the tail and the edge of the rail. Enough air for
+    /// the tail to read as pointing at the ring rather than touching it; the
+    /// safe-triangle monitor keeps the crossing safe.
+    static let bubbleGap: CGFloat = 8
     /// Slack the bubble panel keeps around its shape. A window clips whatever it
     /// draws, so without this margin the drop shadow gets sliced off square at
     /// the panel edge instead of fading out.
