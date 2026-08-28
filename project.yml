@@ -9,7 +9,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "0.1.1"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_HARDENED_RUNTIME: NO
     ENABLE_APP_SANDBOX: NO
@@ -28,6 +28,7 @@ targets:
     info:
       path: Support/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         LSUIElement: true
         NSHighResolutionCapable: true
         NSSupportsAutomaticTermination: false
