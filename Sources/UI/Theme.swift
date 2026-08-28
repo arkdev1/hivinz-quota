@@ -38,6 +38,10 @@ enum Theme {
     /// the panel edge instead of fading out.
     static let bubbleShadowPad: CGFloat = 24
     static let shadowRadius: CGFloat = 14
+    /// The minimize control in the bubble header.
+    static let minimizeButtonSize: CGFloat = 20
+    static let bubbleHPadding: CGFloat = 18
+    static let bubbleVPadding: CGFloat = 14
 
     // MARK: - Colours
     //

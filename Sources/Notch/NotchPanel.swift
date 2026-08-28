@@ -112,7 +112,10 @@ final class BubbleHostView: NSView {
 
     /// The bubble body, in AppKit view coordinates (origin bottom-left).
     var bodyRect: () -> CGRect = { .zero }
+    /// The minimize control, also in AppKit view coordinates.
+    var buttonRect: () -> CGRect = { .zero }
     var onHoverChange: (Bool) -> Void = { _ in }
+    var onButtonClick: () -> Void = {}
 
     private var tracking: NSTrackingArea?
 
@@ -138,4 +141,10 @@ final class BubbleHostView: NSView {
 
     override func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
     override func mouseExited(with event: NSEvent) { onHoverChange(false) }
+
+    override func mouseDown(with event: NSEvent) {
+        if buttonRect().contains(convert(event.locationInWindow, from: nil)) {
+            onButtonClick()
+        }
+    }
 }

@@ -19,6 +19,8 @@ final class Preferences {
     var anchorOnRight: Bool { didSet { save(anchorOnRight, "anchorOnRight") } }
     /// When true the rail latches onto the notch instead of the screen edge.
     var useNotchAnchor: Bool { didSet { save(useNotchAnchor, "useNotchAnchor") } }
+    /// Collapsed to a stub. Click it to bring the rings back.
+    var isMinimized: Bool { didSet { save(isMinimized, "isMinimized") } }
     /// How far below the menu bar the rail has been dragged.
     var verticalOffset: Double { didSet { save(verticalOffset, "verticalOffset") } }
     /// Visual theme: "system", "dark" or "light".
@@ -60,6 +62,7 @@ final class Preferences {
         showNotchWidget = d.object(forKey: "showNotchWidget") as? Bool ?? true
         anchorOnRight = d.object(forKey: "anchorOnRight") as? Bool ?? true
         useNotchAnchor = d.object(forKey: "useNotchAnchor") as? Bool ?? false
+        isMinimized = d.object(forKey: "isMinimized") as? Bool ?? false
         verticalOffset = d.object(forKey: "verticalOffset") as? Double ?? 0
         allowLocalEstimate = d.object(forKey: "allowLocalEstimate") as? Bool ?? false
         theme = d.string(forKey: "theme") ?? "system"

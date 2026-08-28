@@ -22,10 +22,13 @@ struct NotchRailView: View {
     var body: some View {
         let providers = prefs.enabledProviders
         let metrics = RailMetrics(itemCount: providers.count,
-                                  notchMode: prefs.notchModeActive)
+                                  notchMode: prefs.notchModeActive,
+                                  minimized: prefs.isMinimized)
 
         Group {
-            if prefs.notchModeActive {
+            if prefs.isMinimized {
+                minimizedStub
+            } else if prefs.notchModeActive {
                 // Hanging from the notch the rail runs horizontally: rings in a
                 // row, the way the notch itself widens.
                 HStack(spacing: metrics.hItemSpacing) {
@@ -44,7 +47,8 @@ struct NotchRailView: View {
                 .padding(.top, metrics.contentTop)
             }
         }
-        .frame(width: metrics.railTotalWidth, height: metrics.railHeight, alignment: .top)
+        .frame(width: metrics.railTotalWidth, height: metrics.railHeight,
+               alignment: prefs.isMinimized ? .center : .top)
         .background(
             NotchRailShape(attachment: prefs.notchModeActive ? .notch
                             : (prefs.anchorOnRight ? .rightEdge : .leftEdge))
@@ -52,6 +56,17 @@ struct NotchRailView: View {
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: hover.hoveredIndex)
         .allowsHitTesting(false) // hover and clicks are handled by the AppKit tracking area
+    }
+
+    /// Collapsed: a single bar, tinted by whichever provider is worst off, so
+    /// the stub still carries the one bit of information that matters.
+    private var minimizedStub: some View {
+        let worst = store.mostCritical?.window.clampedFraction
+        return Capsule()
+            .fill(worst.map { Theme.severity($0) } ?? Theme.track)
+            .frame(width: prefs.notchModeActive ? 30 : 5,
+                   height: prefs.notchModeActive ? 5 : 30)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func item(_ provider: Provider, index: Int, metrics: RailMetrics) -> some View {

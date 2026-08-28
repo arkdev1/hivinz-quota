@@ -9,6 +9,8 @@ struct RailMetrics {
     /// Hanging from the notch the rail runs horizontally — rings in a row, like
     /// the notch itself widening — so most of these metrics switch axis.
     var notchMode: Bool = false
+    /// Collapsed: a stub instead of the rings.
+    var minimized: Bool = false
 
     // Horizontal (notch) layout constants.
     var hItemSpacing: CGFloat { 10 }
@@ -24,6 +26,7 @@ struct RailMetrics {
     var contentTop: CGFloat { Theme.concaveRadius + Theme.railTopInset }
 
     var railHeight: CGFloat {
+        if minimized { return notchMode ? 26 : 68 + 2 * Theme.concaveRadius }
         if notchMode {
             return notchTopInset + itemHeight + notchBottomInset
         }
@@ -36,6 +39,7 @@ struct RailMetrics {
     }
 
     var railTotalWidth: CGFloat {
+        if minimized { return notchMode ? 68 + 2 * sideInset : 24 }
         guard notchMode else { return Theme.railWidth }
         let items = CGFloat(itemCount) * itemWidth
             + CGFloat(max(itemCount - 1, 0)) * hItemSpacing
@@ -65,9 +69,11 @@ struct RailMetrics {
         (0..<itemCount).first { colBand($0).contains(x) }
     }
 
-    /// The item index under a point, whichever way the rail runs.
+    /// The item index under a point, whichever way the rail runs. A collapsed
+    /// rail has no items to point at.
     func itemIndex(at point: CGPoint) -> Int? {
-        notchMode ? colIndex(atX: point.x) : rowIndex(atY: point.y)
+        guard !minimized else { return nil }
+        return notchMode ? colIndex(atX: point.x) : rowIndex(atY: point.y)
     }
 
     /// Vertical centre of ring i, measured from the top of the rail.

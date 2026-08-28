@@ -16,6 +16,8 @@ struct UsageBubbleView: View {
                 Text(provider.displayName)
                     .font(Theme.rounded(16, .semibold))
                     .foregroundStyle(Theme.primaryText)
+                Spacer(minLength: 8)
+                minimizeButton
             }
 
             switch state {
@@ -31,22 +33,33 @@ struct UsageBubbleView: View {
                 message(reason, tint: Color(nsColor: .systemRed))
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding(.horizontal, Theme.bubbleHPadding)
+        .padding(.vertical, Theme.bubbleVPadding)
         .frame(width: Theme.bubbleWidth, height: height, alignment: .topLeading)
+        // The shape is wider or taller than the content by the tail's reach.
+        // Aligning here — rather than letting the content centre itself inside
+        // the panel — is what keeps the tail tip where the controller aimed it.
+        .frame(width: Self.shapeWidth(tailEdge),
+               height: Self.shapeHeight(tailEdge, contentHeight: height),
+               alignment: contentAlignment)
         .background(
-            // The shape spans the body plus the tail, which juts out of one edge.
             BubbleShape(tailPosition: tailPosition, tailEdge: tailEdge)
                 .fill(Theme.surface)
                 .shadow(color: Theme.shadowColor, radius: Theme.shadowRadius,
                         y: tailEdge == .top ? 8 : 6)
-                .frame(width: tailEdge == .top ? Theme.bubbleWidth
-                        : Theme.bubbleWidth + Theme.bubbleTailWidth,
-                       height: tailEdge == .top ? height + Theme.bubbleTailWidth : height)
-                .offset(x: tailEdge == .right ? Theme.bubbleTailWidth / 2
-                            : tailEdge == .left ? -Theme.bubbleTailWidth / 2 : 0,
-                        y: tailEdge == .top ? -Theme.bubbleTailWidth / 2 : 0)
         )
+    }
+
+    /// Purely visual: the click is caught by the AppKit host, which owns hit
+    /// testing for the whole bubble.
+    private var minimizeButton: some View {
+        ZStack {
+            Circle().fill(Theme.track)
+            Image(systemName: "minus")
+                .font(.system(size: 9, weight: .black))
+                .foregroundStyle(Theme.secondaryText)
+        }
+        .frame(width: Theme.minimizeButtonSize, height: Theme.minimizeButtonSize)
     }
 
     private func windowBlock(_ window: UsageWindow) -> some View {
@@ -70,5 +83,41 @@ struct UsageBubbleView: View {
             .font(Theme.rounded(12.5))
             .foregroundStyle(tint)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var contentAlignment: Alignment {
+        switch tailEdge {
+        case .right: return .leading    // tail juts out to the right
+        case .left: return .trailing
+        case .top: return .bottom
+        }
+    }
+
+    // MARK: - Extents, shared with the controller's geometry
+
+    static func shapeWidth(_ edge: TailEdge) -> CGFloat {
+        edge == .top ? Theme.bubbleWidth : Theme.bubbleWidth + Theme.bubbleTailWidth
+    }
+
+    static func shapeHeight(_ edge: TailEdge, contentHeight: CGFloat) -> CGFloat {
+        edge == .top ? contentHeight + Theme.bubbleTailWidth : contentHeight
+    }
+
+    /// Top-left of the content box inside the shape.
+    static func contentOrigin(_ edge: TailEdge) -> CGPoint {
+        switch edge {
+        case .right: return .zero
+        case .left: return CGPoint(x: Theme.bubbleTailWidth, y: 0)
+        case .top: return CGPoint(x: 0, y: Theme.bubbleTailWidth)
+        }
+    }
+
+    /// The minimize button, in the shape's own coordinates (origin top-left).
+    static func minimizeButtonRect(_ edge: TailEdge) -> CGRect {
+        let origin = contentOrigin(edge)
+        let size = Theme.minimizeButtonSize
+        return CGRect(x: origin.x + Theme.bubbleWidth - Theme.bubbleHPadding - size,
+                      y: origin.y + Theme.bubbleVPadding,
+                      width: size, height: size)
     }
 }

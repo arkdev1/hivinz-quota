@@ -37,6 +37,7 @@ final class NotchController {
             _ = prefs.useNotchAnchor
             _ = prefs.verticalOffset
             _ = prefs.showNotchWidget
+            _ = prefs.isMinimized
         } onChange: {
             Task { @MainActor [weak self] in self?.rebuild() }
         }
@@ -54,7 +55,9 @@ final class NotchController {
         let geometry = targetScreen().map(NotchGeometry.init)
         prefs.notchModeActive = prefs.useNotchAnchor && (geometry?.hasNotch ?? false)
         metrics = RailMetrics(itemCount: providers.count,
-                              notchMode: prefs.notchModeActive)
+                              notchMode: prefs.notchModeActive,
+                              minimized: prefs.isMinimized)
+        if prefs.isMinimized { hideBubble() }
         let panel = railPanel ?? makeRailPanel()
         railPanel = panel
         panel.setContentSize(CGSize(width: metrics.railTotalWidth, height: metrics.railHeight))
@@ -120,7 +123,14 @@ final class NotchController {
         }
         host.rowIndex = { [weak self] point in self?.metrics.itemIndex(at: point) }
         host.onHover = { [weak self] index in self?.handleHover(index) }
-        host.onClick = { [weak self] in self?.openSettings() }
+        host.onClick = { [weak self] in
+            guard let self else { return }
+            if self.prefs.isMinimized {
+                self.prefs.isMinimized = false
+            } else {
+                self.openSettings()
+            }
+        }
         host.onDragBegan = { [weak self] in self?.beginDrag() }
         host.onDrag = { [weak self] location in self?.drag(to: location) }
         host.onDragEnded = { [weak self] in self?.dragGrabOffset = nil }
@@ -270,6 +280,14 @@ final class NotchController {
 
         if let host = panel.contentView as? BubbleHostView {
             host.bodyRect = { CGRect(x: pad, y: pad, width: width, height: shapeHeight) }
+            // The button rect arrives in the shape's top-left coordinates; the
+            // panel is bottom-left and inflated by the shadow padding.
+            let button = UsageBubbleView.minimizeButtonRect(tailEdge)
+            host.buttonRect = {
+                CGRect(x: pad + button.minX,
+                       y: pad + shapeHeight - button.maxY,
+                       width: button.width, height: button.height)
+            }
             if let hosting = host.subviews.first as? NSHostingView<NotchBubbleView> {
                 hosting.rootView = content
             }
@@ -304,6 +322,12 @@ final class NotchController {
     private func makeBubblePanel(size: CGSize) -> NotchPanel {
         let panel = NotchPanel(size: size, interactive: true)
         let host = BubbleHostView()
+        host.onButtonClick = { [weak self] in
+            Task { @MainActor in
+                self?.hideBubble()
+                self?.prefs.isMinimized = true
+            }
+        }
         host.onHoverChange = { [weak self] inside in
             Task { @MainActor in
                 guard let self else { return }
