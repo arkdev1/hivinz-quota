@@ -6,9 +6,15 @@ import CoreGraphics
 struct RailMetrics {
 
     let itemCount: Int
-    /// Hanging from the notch: side flares add width instead of the top ones
-    /// adding height at the outer edge.
+    /// Hanging from the notch the rail runs horizontally — rings in a row, like
+    /// the notch itself widening — so most of these metrics switch axis.
     var notchMode: Bool = false
+
+    // Horizontal (notch) layout constants.
+    var hItemSpacing: CGFloat { 10 }
+    var notchTopInset: CGFloat { 6 }
+    var notchBottomInset: CGFloat { 14 }
+    var itemWidth: CGFloat { Theme.railWidth }
 
     var labelHeight: CGFloat { 16 }
     var itemHeight: CGFloat { Theme.ringSize + Theme.ringToLabel + labelHeight }
@@ -18,6 +24,9 @@ struct RailMetrics {
     var contentTop: CGFloat { Theme.concaveRadius + Theme.railTopInset }
 
     var railHeight: CGFloat {
+        if notchMode {
+            return notchTopInset + itemHeight + notchBottomInset
+        }
         guard itemCount > 0 else { return contentTop + Theme.railBottomInset }
         return contentTop
             + CGFloat(itemCount) * itemHeight
@@ -27,11 +36,39 @@ struct RailMetrics {
     }
 
     var railTotalWidth: CGFloat {
-        notchMode ? Theme.railWidth + 2 * Theme.notchFlareWidth : Theme.railWidth
+        guard notchMode else { return Theme.railWidth }
+        let items = CGFloat(itemCount) * itemWidth
+            + CGFloat(max(itemCount - 1, 0)) * hItemSpacing
+        return items + 2 * sideInset
     }
 
-    /// Horizontal inset of the body inside the panel.
-    var sideInset: CGFloat { notchMode ? Theme.notchFlareWidth : 0 }
+    /// Horizontal inset of the body content inside the panel.
+    var sideInset: CGFloat { notchMode ? Theme.notchFlareWidth + 4 : 0 }
+
+    // MARK: - Horizontal addressing (notch mode)
+
+    /// Horizontal centre of ring i, from the left of the rail.
+    func ringCenterX(_ index: Int) -> CGFloat {
+        sideInset + CGFloat(index) * (itemWidth + hItemSpacing) + itemWidth / 2
+    }
+
+    /// The horizontal band a column owns, half the gap included on both sides.
+    func colBand(_ index: Int) -> ClosedRange<CGFloat> {
+        let left = sideInset + CGFloat(index) * (itemWidth + hItemSpacing)
+        let lower = index == 0 ? 0 : left - hItemSpacing / 2
+        let upper = index == itemCount - 1
+            ? railTotalWidth : left + itemWidth + hItemSpacing / 2
+        return lower...upper
+    }
+
+    func colIndex(atX x: CGFloat) -> Int? {
+        (0..<itemCount).first { colBand($0).contains(x) }
+    }
+
+    /// The item index under a point, whichever way the rail runs.
+    func itemIndex(at point: CGPoint) -> Int? {
+        notchMode ? colIndex(atX: point.x) : rowIndex(atY: point.y)
+    }
 
     /// Vertical centre of ring i, measured from the top of the rail.
     func ringCenterY(_ index: Int) -> CGFloat {

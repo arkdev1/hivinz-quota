@@ -3,9 +3,10 @@ import SwiftUI
 struct UsageBubbleView: View {
     let provider: Provider
     let state: ProviderState
-    let tailCenterY: CGFloat
+    /// Position of the tail tip along its edge: y for side tails, x for top.
+    let tailPosition: CGFloat
     let height: CGFloat
-    var tailOnRight: Bool = true
+    var tailEdge: TailEdge = .right
     let now: Date
 
     var body: some View {
@@ -34,12 +35,17 @@ struct UsageBubbleView: View {
         .padding(.vertical, 14)
         .frame(width: Theme.bubbleWidth, height: height, alignment: .topLeading)
         .background(
-            BubbleShape(tailCenterY: tailCenterY, tailOnRight: tailOnRight)
+            // The shape spans the body plus the tail, which juts out of one edge.
+            BubbleShape(tailPosition: tailPosition, tailEdge: tailEdge)
                 .fill(Theme.surface)
-                .shadow(color: Theme.shadowColor, radius: Theme.shadowRadius, y: 6)
-                // The bubble spans the body plus the tail, which juts out to the side.
-                .frame(width: Theme.bubbleWidth + Theme.bubbleTailWidth)
-                .offset(x: tailOnRight ? Theme.bubbleTailWidth / 2 : -Theme.bubbleTailWidth / 2)
+                .shadow(color: Theme.shadowColor, radius: Theme.shadowRadius,
+                        y: tailEdge == .top ? 8 : 6)
+                .frame(width: tailEdge == .top ? Theme.bubbleWidth
+                        : Theme.bubbleWidth + Theme.bubbleTailWidth,
+                       height: tailEdge == .top ? height + Theme.bubbleTailWidth : height)
+                .offset(x: tailEdge == .right ? Theme.bubbleTailWidth / 2
+                            : tailEdge == .left ? -Theme.bubbleTailWidth / 2 : 0,
+                        y: tailEdge == .top ? -Theme.bubbleTailWidth / 2 : 0)
         )
     }
 

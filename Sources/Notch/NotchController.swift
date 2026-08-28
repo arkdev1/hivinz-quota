@@ -118,7 +118,7 @@ final class NotchController {
                           width: self.metrics.railTotalWidth,
                           height: self.metrics.railHeight)
         }
-        host.rowIndex = { [weak self] point in self?.metrics.rowIndex(atY: point.y) }
+        host.rowIndex = { [weak self] point in self?.metrics.itemIndex(at: point) }
         host.onHover = { [weak self] index in self?.handleHover(index) }
         host.onClick = { [weak self] in self?.openSettings() }
         host.onDragBegan = { [weak self] in self?.beginDrag() }
@@ -215,40 +215,61 @@ final class NotchController {
         let provider = providers[index]
         let windowCount = store.state(for: provider.id).snapshot?.windows.count ?? 1
         let height = metrics.bubbleHeight(windowCount: windowCount)
-        let width = Theme.bubbleWidth + Theme.bubbleTailWidth
         let pad = Theme.bubbleShadowPad
+        let tailEdge: TailEdge = prefs.notchModeActive ? .top
+            : (prefs.anchorOnRight ? .right : .left)
 
-        // Ring centre in screen coordinates.
-        let railTop = rail.frame.maxY
-        let ringCenterY = railTop - metrics.ringCenterY(index)
+        // Shape extent: side tails widen the shape, a top tail makes it taller.
+        let width = tailEdge == .top ? Theme.bubbleWidth
+            : Theme.bubbleWidth + Theme.bubbleTailWidth
+        let shapeHeight = tailEdge == .top ? height + Theme.bubbleTailWidth : height
 
-        let tipX = prefs.anchorOnRight
-            ? rail.frame.minX + metrics.sideInset - Theme.bubbleGap
-            : rail.frame.maxX - metrics.sideInset + Theme.bubbleGap
-        let originX = prefs.anchorOnRight ? tipX - width : tipX
+        let originX: CGFloat
+        let originY: CGFloat
+        let tailPosition: CGFloat
 
-        // The bubble centres on its ring, but never rides up over the menu bar
-        // and never falls off the bottom. Clamping to the rail's own top instead
-        // would shove it downwards whenever the rail has been dragged away.
-        let lowest = screen.visibleFrame.minY + 8
-        let ceiling = NotchGeometry(screen: screen).topEdge
-        let highest = max(ceiling - height, lowest)
-        let originY = min(max(ringCenterY - height / 2, lowest), highest)
-        let tailCenterY = (originY + height) - ringCenterY
+        if tailEdge == .top {
+            // Below the horizontal rail, tail pointing up at the ring.
+            let ringCenterX = rail.frame.minX + metrics.ringCenterX(index)
+            let leftMost = screen.visibleFrame.minX + 8
+            let rightMost = screen.visibleFrame.maxX - 8 - width
+            originX = min(max(ringCenterX - width / 2, leftMost), rightMost)
+            originY = rail.frame.minY - Theme.bubbleGap - shapeHeight
+            tailPosition = ringCenterX - originX
+        } else {
+            // Ring centre in screen coordinates.
+            let railTop = rail.frame.maxY
+            let ringCenterY = railTop - metrics.ringCenterY(index)
+
+            let tipX = prefs.anchorOnRight
+                ? rail.frame.minX + metrics.sideInset - Theme.bubbleGap
+                : rail.frame.maxX - metrics.sideInset + Theme.bubbleGap
+            originX = prefs.anchorOnRight ? tipX - width : tipX
+
+            // The bubble centres on its ring, but never rides up over the menu
+            // bar and never falls off the bottom. Clamping to the rail's own top
+            // instead would shove it downwards whenever the rail has been
+            // dragged away.
+            let lowest = screen.visibleFrame.minY + 8
+            let ceiling = NotchGeometry(screen: screen).topEdge
+            let highest = max(ceiling - height, lowest)
+            originY = min(max(ringCenterY - height / 2, lowest), highest)
+            tailPosition = (originY + height) - ringCenterY
+        }
 
         let wasVisible = bubblePanel?.isVisible ?? false
         if !wasVisible { bubbleGeneration += 1 }
         let content = NotchBubbleView(provider: provider,
-                                      tailCenterY: tailCenterY,
+                                      tailPosition: tailPosition,
                                       height: height,
-                                      tailOnRight: prefs.anchorOnRight,
+                                      tailEdge: tailEdge,
                                       generation: bubbleGeneration)
         let panel = bubblePanel ?? makeBubblePanel(
-            size: CGSize(width: width + pad * 2, height: height + pad * 2))
+            size: CGSize(width: width + pad * 2, height: shapeHeight + pad * 2))
         bubblePanel = panel
 
         if let host = panel.contentView as? BubbleHostView {
-            host.bodyRect = { CGRect(x: pad, y: pad, width: width, height: height) }
+            host.bodyRect = { CGRect(x: pad, y: pad, width: width, height: shapeHeight) }
             if let hosting = host.subviews.first as? NSHostingView<NotchBubbleView> {
                 hosting.rootView = content
             }
@@ -258,8 +279,8 @@ final class NotchController {
         // The panel is inflated on every side so the shadow has somewhere to go;
         // the shape itself still lands exactly where the geometry above put it.
         let frame = CGRect(x: originX - pad, y: originY - pad,
-                           width: width + pad * 2, height: height + pad * 2)
-        bubbleBodyFrame = CGRect(x: originX, y: originY, width: width, height: height)
+                           width: width + pad * 2, height: shapeHeight + pad * 2)
+        bubbleBodyFrame = CGRect(x: originX, y: originY, width: width, height: shapeHeight)
 
         if wasVisible {
             // Sliding between rings: glide, don't teleport.
@@ -295,7 +316,7 @@ final class NotchController {
             }
         }
         let hosting = NSHostingView(rootView: NotchBubbleView(
-            provider: .claude, tailCenterY: 0, height: 0, tailOnRight: true,
+            provider: .claude, tailPosition: 0, height: 0, tailEdge: .right,
             generation: 0))
         hosting.translatesAutoresizingMaskIntoConstraints = false
         host.addSubview(hosting)
@@ -369,6 +390,10 @@ final class NotchController {
 
     /// The two corners of the bubble on the side facing the rail.
     private func nearCorners(of body: CGRect) -> (NSPoint, NSPoint) {
+        if prefs.notchModeActive {
+            return (NSPoint(x: body.minX, y: body.maxY),
+                    NSPoint(x: body.maxX, y: body.maxY))
+        }
         let x = prefs.anchorOnRight ? body.maxX : body.minX
         return (NSPoint(x: x, y: body.minY), NSPoint(x: x, y: body.maxY))
     }
@@ -397,9 +422,9 @@ final class NotchController {
 struct NotchBubbleView: View {
     var store = UsageStore.shared
     let provider: Provider
-    let tailCenterY: CGFloat
+    let tailPosition: CGFloat
     let height: CGFloat
-    let tailOnRight: Bool
+    let tailEdge: TailEdge
 
     /// Bumped by the controller on every fresh appearance. The hosting view
     /// stays mounted while the panel is hidden, so `onAppear` alone would only
@@ -414,18 +439,15 @@ struct NotchBubbleView: View {
         TimelineView(.periodic(from: .now, by: 20)) { context in
             UsageBubbleView(provider: provider,
                             state: store.state(for: provider.id),
-                            tailCenterY: tailCenterY,
+                            tailPosition: tailPosition,
                             height: height,
-                            tailOnRight: tailOnRight,
+                            tailEdge: tailEdge,
                             now: context.date)
         }
-        .scaleEffect(appeared ? 1 : 0.92,
-                     anchor: tailOnRight
-                        ? UnitPoint(x: 1, y: 0.5)
-                        : UnitPoint(x: 0, y: 0.5))
+        .scaleEffect(appeared ? 1 : 0.92, anchor: anchor)
         .opacity(appeared ? 1 : 0)
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: appeared)
-        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: tailCenterY)
+        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: tailPosition)
         .onAppear { appeared = true }
         .onChange(of: generation) {
             var transaction = Transaction()
@@ -435,5 +457,14 @@ struct NotchBubbleView: View {
         }
         .padding(Theme.bubbleShadowPad)   // room for the shadow to fade out
         .allowsHitTesting(false)
+    }
+
+    /// The entrance springs out of the tail, wherever the tail is.
+    private var anchor: UnitPoint {
+        switch tailEdge {
+        case .right: return UnitPoint(x: 1, y: 0.5)
+        case .left: return UnitPoint(x: 0, y: 0.5)
+        case .top: return UnitPoint(x: 0.5, y: 0)
+        }
     }
 }

@@ -24,24 +24,26 @@ struct NotchRailView: View {
         let metrics = RailMetrics(itemCount: providers.count,
                                   notchMode: prefs.notchModeActive)
 
-        VStack(spacing: Theme.itemSpacing) {
-            ForEach(Array(providers.enumerated()), id: \.element.id) { pair in
-                let (index, provider) = pair
-                let window = store.state(for: provider.id).snapshot?.headline
-                VStack(spacing: Theme.ringToLabel) {
-                    RingGauge(fraction: window?.clampedFraction ?? 0,
-                              glyph: provider.glyph,
-                              dimmed: window == nil)
-                    Text(window?.percentText ?? "—")
-                        .font(Theme.rounded(13, .semibold))
-                        .foregroundStyle(window == nil ? Theme.secondaryText : Theme.primaryText)
-                        .frame(height: metrics.labelHeight)
+        Group {
+            if prefs.notchModeActive {
+                // Hanging from the notch the rail runs horizontally: rings in a
+                // row, the way the notch itself widens.
+                HStack(spacing: metrics.hItemSpacing) {
+                    ForEach(Array(providers.enumerated()), id: \.element.id) { pair in
+                        item(pair.1, index: pair.0, metrics: metrics)
+                            .frame(width: metrics.itemWidth)
+                    }
                 }
-                .opacity(hover.hoveredIndex == nil || hover.hoveredIndex == index ? 1 : 0.4)
-                .scaleEffect(hover.hoveredIndex == index ? 1.06 : 1)
+                .padding(.top, metrics.notchTopInset)
+            } else {
+                VStack(spacing: Theme.itemSpacing) {
+                    ForEach(Array(providers.enumerated()), id: \.element.id) { pair in
+                        item(pair.1, index: pair.0, metrics: metrics)
+                    }
+                }
+                .padding(.top, metrics.contentTop)
             }
         }
-        .padding(.top, metrics.contentTop)
         .frame(width: metrics.railTotalWidth, height: metrics.railHeight, alignment: .top)
         .background(
             NotchRailShape(attachment: prefs.notchModeActive ? .notch
@@ -50,5 +52,20 @@ struct NotchRailView: View {
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: hover.hoveredIndex)
         .allowsHitTesting(false) // hover and clicks are handled by the AppKit tracking area
+    }
+
+    private func item(_ provider: Provider, index: Int, metrics: RailMetrics) -> some View {
+        let window = store.state(for: provider.id).snapshot?.headline
+        return VStack(spacing: Theme.ringToLabel) {
+            RingGauge(fraction: window?.clampedFraction ?? 0,
+                      glyph: provider.glyph,
+                      dimmed: window == nil)
+            Text(window?.percentText ?? "—")
+                .font(Theme.rounded(13, .semibold))
+                .foregroundStyle(window == nil ? Theme.secondaryText : Theme.primaryText)
+                .frame(height: metrics.labelHeight)
+        }
+        .opacity(hover.hoveredIndex == nil || hover.hoveredIndex == index ? 1 : 0.4)
+        .scaleEffect(hover.hoveredIndex == index ? 1.06 : 1)
     }
 }

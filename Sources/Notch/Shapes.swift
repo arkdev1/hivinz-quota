@@ -94,45 +94,79 @@ struct NotchRailShape: Shape {
     }
 }
 
+/// Which side of the bubble carries the tail.
+enum TailEdge {
+    case left, right
+    /// Pointing up at a ring in the horizontal, notch-hung rail.
+    case top
+}
+
 /// A bubble whose tail lines up with the ring under the cursor.
 struct BubbleShape: Shape {
 
-    /// Vertical position of the tip, in the bubble's own coordinates.
-    var tailCenterY: CGFloat
-    var tailOnRight: Bool = true
+    /// Position of the tip along the tail's edge, in the bubble's own
+    /// coordinates: a y for .left/.right, an x for .top.
+    var tailPosition: CGFloat
+    var tailEdge: TailEdge = .right
     var radius: CGFloat = Theme.bubbleRadius
     var tailWidth: CGFloat = Theme.bubbleTailWidth
     var tailHeight: CGFloat = Theme.bubbleTailHeight
 
     var animatableData: CGFloat {
-        get { tailCenterY }
-        set { tailCenterY = newValue }
+        get { tailPosition }
+        set { tailPosition = newValue }
     }
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let body = tailOnRight
-            ? CGRect(x: rect.minX, y: rect.minY, width: rect.width - tailWidth, height: rect.height)
-            : CGRect(x: rect.minX + tailWidth, y: rect.minY, width: rect.width - tailWidth, height: rect.height)
+        let body: CGRect
+        switch tailEdge {
+        case .right:
+            body = CGRect(x: rect.minX, y: rect.minY,
+                          width: rect.width - tailWidth, height: rect.height)
+        case .left:
+            body = CGRect(x: rect.minX + tailWidth, y: rect.minY,
+                          width: rect.width - tailWidth, height: rect.height)
+        case .top:
+            body = CGRect(x: rect.minX, y: rect.minY + tailWidth,
+                          width: rect.width, height: rect.height - tailWidth)
+        }
 
         path.addRoundedRect(in: body, cornerSize: CGSize(width: radius, height: radius),
                             style: .continuous)
 
         // The tail stays within the body's straight run, so it never detaches
-        // when the active ring is the first or the last of the column.
+        // when the active ring is the first or the last of the line.
         let half = tailHeight / 2
-        let y = min(max(tailCenterY, body.minY + radius + half), body.maxY - radius - half)
-        let baseX = tailOnRight ? body.maxX : body.minX
-        let tipX = tailOnRight ? rect.maxX : rect.minX
-
         var tail = Path()
-        tail.move(to: CGPoint(x: baseX, y: y - half))
-        // The two quads give the tip the same soft radius as the body, instead
-        // of a sharp triangle.
-        tail.addQuadCurve(to: CGPoint(x: tipX, y: y),
-                          control: CGPoint(x: baseX + (tipX - baseX) * 0.72, y: y - half * 0.42))
-        tail.addQuadCurve(to: CGPoint(x: baseX, y: y + half),
-                          control: CGPoint(x: baseX + (tipX - baseX) * 0.72, y: y + half * 0.42))
+
+        if tailEdge == .top {
+            let x = min(max(tailPosition, body.minX + radius + half),
+                        body.maxX - radius - half)
+            let baseY = body.minY
+            let tipY = rect.minY
+            tail.move(to: CGPoint(x: x - half, y: baseY))
+            tail.addQuadCurve(to: CGPoint(x: x, y: tipY),
+                              control: CGPoint(x: x - half * 0.42,
+                                               y: baseY + (tipY - baseY) * 0.72))
+            tail.addQuadCurve(to: CGPoint(x: x + half, y: baseY),
+                              control: CGPoint(x: x + half * 0.42,
+                                               y: baseY + (tipY - baseY) * 0.72))
+        } else {
+            let y = min(max(tailPosition, body.minY + radius + half),
+                        body.maxY - radius - half)
+            let baseX = tailEdge == .right ? body.maxX : body.minX
+            let tipX = tailEdge == .right ? rect.maxX : rect.minX
+            tail.move(to: CGPoint(x: baseX, y: y - half))
+            // The two quads give the tip the same soft radius as the body,
+            // instead of a sharp triangle.
+            tail.addQuadCurve(to: CGPoint(x: tipX, y: y),
+                              control: CGPoint(x: baseX + (tipX - baseX) * 0.72,
+                                               y: y - half * 0.42))
+            tail.addQuadCurve(to: CGPoint(x: baseX, y: y + half),
+                              control: CGPoint(x: baseX + (tipX - baseX) * 0.72,
+                                               y: y + half * 0.42))
+        }
         tail.closeSubpath()
 
         path.addPath(tail)
