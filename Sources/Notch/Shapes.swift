@@ -21,19 +21,30 @@ struct NotchRailShape: Shape {
         let v = min(convex, rect.width / 2, (rect.height - 2 * c) / 2)
 
         // Drawn right-attached: the outer side (maxX) is dead straight and flush
-        // with the screen edge; each end tapers into it through a concave quad.
+        // with the screen edge; each end melts into it through a concave fillet.
+        //
+        // The fillet's control points hug the *inner* corner — (maxX, minY+c) at
+        // the top — which is what makes the black flare outward along the edge,
+        // exactly like the underside of the notch. Put them on the outer corner
+        // and the same curve turns convex: a rounded shoulder, the opposite look.
+        // The inner corners are drawn as cubics with the ~0.45 handle spread of
+        // a continuous rounded rect, so they read as one family of curves.
         path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX - c, y: rect.minY + c),
-                          control: CGPoint(x: rect.maxX - c, y: rect.minY))
+        path.addCurve(to: CGPoint(x: rect.maxX - c, y: rect.minY + c),
+                      control1: CGPoint(x: rect.maxX, y: rect.minY + c * 0.55),
+                      control2: CGPoint(x: rect.maxX - c * 0.45, y: rect.minY + c))
         path.addLine(to: CGPoint(x: rect.minX + v, y: rect.minY + c))
-        path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.minY + c + v),
-                          control: CGPoint(x: rect.minX, y: rect.minY + c))
+        path.addCurve(to: CGPoint(x: rect.minX, y: rect.minY + c + v),
+                      control1: CGPoint(x: rect.minX + v * 0.45, y: rect.minY + c),
+                      control2: CGPoint(x: rect.minX, y: rect.minY + c + v * 0.45))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - c - v))
-        path.addQuadCurve(to: CGPoint(x: rect.minX + v, y: rect.maxY - c),
-                          control: CGPoint(x: rect.minX, y: rect.maxY - c))
+        path.addCurve(to: CGPoint(x: rect.minX + v, y: rect.maxY - c),
+                      control1: CGPoint(x: rect.minX, y: rect.maxY - c - v * 0.45),
+                      control2: CGPoint(x: rect.minX + v * 0.45, y: rect.maxY - c))
         path.addLine(to: CGPoint(x: rect.maxX - c, y: rect.maxY - c))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.maxY),
-                          control: CGPoint(x: rect.maxX - c, y: rect.maxY))
+        path.addCurve(to: CGPoint(x: rect.maxX, y: rect.maxY),
+                      control1: CGPoint(x: rect.maxX - c * 0.45, y: rect.maxY - c),
+                      control2: CGPoint(x: rect.maxX, y: rect.maxY - c * 0.55))
         path.closeSubpath() // straight run back up the screen edge
 
         guard attachedRight else {

@@ -6,8 +6,10 @@ enum Theme {
 
     static let railWidth: CGFloat = 54
     /// Reach of the concave fillets that melt the rail into the screen edge.
-    static let concaveRadius: CGFloat = 14
-    static let convexRadius: CGFloat = 24
+    /// Generous on purpose: in the reference design the flares are wide, slow
+    /// curves — small radii read as a chip in the corner rather than a melt.
+    static let concaveRadius: CGFloat = 20
+    static let convexRadius: CGFloat = 26
     static let ringSize: CGFloat = 34
     static let ringLineWidth: CGFloat = 3.5
     static let ringToLabel: CGFloat = 5
