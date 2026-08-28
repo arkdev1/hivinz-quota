@@ -31,6 +31,7 @@ actor AnthropicOAuthSource {
             switch self {
             case .noCredentials: return "Sign in with Claude Code first"
             case .expired: return "Claude Code session expired — run /login"
+            case .http(429): return "Rate limited — will retry shortly"
             case .http(let code): return "Usage endpoint returned \(code)"
             case .malformed: return "Unexpected response from the usage endpoint"
             }
@@ -39,7 +40,29 @@ actor AnthropicOAuthSource {
 
     private let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
+    // MARK: - Politeness
+    //
+    // The UI refresh timer can tick every 20 seconds, but this endpoint must not
+    // be hit that often — it rate-limits, and a usage widget that earns 429s is
+    // spending the very quota it is supposed to watch. So the source keeps its
+    // own cadence: a successful reading is served from cache for a minute, a 429
+    // honours Retry-After (with a floor when the header is missing), and while
+    // rate-limited the last good reading keeps being served. The windows carry
+    // absolute reset dates, so a cached reading still counts down correctly.
+
+    private let minInterval: TimeInterval = 60
+    private let defaultCooldown: TimeInterval = 5 * 60
+    private lazy var lastGood: (windows: [UsageWindow], at: Date)? = Self.loadCache()
+    private var retryAfter: Date = .distantPast
+
     func fetchWindows() async throws -> [UsageWindow] {
+        let now = Date()
+        if let cached = lastGood,
+           now < retryAfter || now.timeIntervalSince(cached.at) < minInterval {
+            return cached.windows
+        }
+        guard now >= retryAfter else { throw Failure.http(429) }
+
         guard let credentials = Self.keychainCredentials() else { throw Failure.noCredentials }
         guard !credentials.isExpired else { throw Failure.expired }
 
@@ -51,6 +74,13 @@ actor AnthropicOAuthSource {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw Failure.malformed }
+
+        if http.statusCode == 429 {
+            let hinted = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init)
+            retryAfter = Date().addingTimeInterval(max(hinted ?? defaultCooldown, 60))
+            if let cached = lastGood { return cached.windows }
+            throw Failure.http(429)
+        }
         guard (200..<300).contains(http.statusCode) else { throw Failure.http(http.statusCode) }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw Failure.malformed
@@ -58,7 +88,51 @@ actor AnthropicOAuthSource {
 
         let windows = Self.windows(from: json)
         guard !windows.isEmpty else { throw Failure.malformed }
+        lastGood = (windows, Date())
+        retryAfter = .distantPast
+        Self.storeCache(windows)
         return windows
+    }
+
+    // MARK: - Reading cache
+    //
+    // The last good reading is kept in UserDefaults so a relaunch during a
+    // rate-limit cooldown still has a figure to show instead of a blank ring.
+    // Reset dates are absolute, so a persisted reading keeps counting down;
+    // anything older than an hour is discarded as no longer worth showing.
+
+    private static let cacheKey = "anthropicUsageCache"
+
+    private static func storeCache(_ windows: [UsageWindow]) {
+        let payload: [String: Any] = [
+            "at": Date().timeIntervalSince1970,
+            "windows": windows.map { w -> [String: Any] in
+                var dict: [String: Any] = ["id": w.id, "label": w.label, "used": w.usedFraction]
+                if let resetsAt = w.resetsAt { dict["resets"] = resetsAt.timeIntervalSince1970 }
+                return dict
+            }
+        ]
+        UserDefaults.standard.set(payload, forKey: cacheKey)
+    }
+
+    private static func loadCache() -> (windows: [UsageWindow], at: Date)? {
+        guard let payload = UserDefaults.standard.dictionary(forKey: cacheKey),
+              let epoch = payload["at"] as? Double,
+              let raw = payload["windows"] as? [[String: Any]]
+        else { return nil }
+
+        let at = Date(timeIntervalSince1970: epoch)
+        guard Date().timeIntervalSince(at) < 3600 else { return nil }
+
+        let windows = raw.compactMap { item -> UsageWindow? in
+            guard let id = item["id"] as? String,
+                  let label = item["label"] as? String,
+                  let used = item["used"] as? Double else { return nil }
+            let resets = (item["resets"] as? Double).map(Date.init(timeIntervalSince1970:))
+            return UsageWindow(id: id, label: label, usedFraction: used,
+                               resetsAt: resets, usedTokens: 0, limitTokens: 0)
+        }
+        return windows.isEmpty ? nil : (windows, at)
     }
 
     // MARK: - Response shape

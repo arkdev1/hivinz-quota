@@ -58,7 +58,7 @@ final class UsageStore {
                 }
             }
             for await (id, state) in group {
-                states[id] = state
+                states[id] = merged(old: states[id], new: state)
             }
         }
 
@@ -66,6 +66,17 @@ final class UsageStore {
             states.removeValue(forKey: id)
         }
         lastRefresh = Date()
+    }
+
+    /// A transient failure must not blank a ring that had a good reading moments
+    /// ago: keep the last snapshot for up to an hour before surfacing the error.
+    private func merged(old: ProviderState?, new: ProviderState) -> ProviderState {
+        if case .ready = new { return new }
+        if let old, case .ready(let snapshot) = old,
+           Date().timeIntervalSince(snapshot.fetchedAt) < 3600 {
+            return old
+        }
+        return new
     }
 
     /// The provider closest to its limit — the one that drives the menu bar icon.
