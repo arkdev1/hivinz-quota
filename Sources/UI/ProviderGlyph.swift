@@ -10,7 +10,7 @@ struct ProviderGlyph: View {
         Group {
             switch kind {
             case .anthropic: BurstGlyph(spokes: 12).fill(Theme.primaryText)
-            case .openai:    KnotGlyph().stroke(Theme.primaryText, lineWidth: 1.2)
+            case .openai:    KnotGlyph().stroke(Theme.primaryText, lineWidth: 1.35)
             case .gemini:    SparkGlyph().fill(Theme.primaryText)
             case .terminal:  Image(systemName: "chevron.left.forwardslash.chevron.right")
                                 .font(.system(size: size * 0.72, weight: .semibold))

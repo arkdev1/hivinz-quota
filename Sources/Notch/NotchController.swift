@@ -126,18 +126,25 @@ final class NotchController {
     private func handleHover(_ index: Int?) {
         hideWorkItem?.cancel()
         guard let index, index < prefs.enabledProviders.count else {
-            // A short delay on the way out: crossing the edge shouldn't make the
-            // bubble flicker.
-            let work = DispatchWorkItem { [weak self] in
-                self?.hover.hoveredIndex = nil
-                self?.hideBubble()
-            }
-            hideWorkItem = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
+            // Leaving the rail doesn't close the bubble by itself: the pointer
+            // may be on its way over there. Remember where it left, and let the
+            // safe-triangle monitor decide.
+            triangleApex = NSEvent.mouseLocation
+            scheduleHide(after: 0.5) // fallback if the monitor never fires
             return
         }
         hover.hoveredIndex = index
         showBubble(for: index)
+    }
+
+    private func scheduleHide(after delay: TimeInterval) {
+        hideWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.hover.hoveredIndex = nil
+            self?.hideBubble()
+        }
+        hideWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     // MARK: - Dragging
@@ -170,6 +177,16 @@ final class NotchController {
 
     // MARK: - Bubble
 
+    /// Where the pointer last left the rail: the apex of the safe triangle.
+    private var triangleApex: NSPoint?
+    /// The bubble body in screen coordinates, while visible.
+    private var bubbleBodyFrame: CGRect = .zero
+    private var mouseMonitor: Any?
+    /// Set while the pointer travels the safe triangle without arriving: a
+    /// pointer parked mid-flight shouldn't pin the bubble open forever.
+    private var triangleDeadline: Date?
+    private var bubbleGeneration = 0
+
     private func showBubble(for index: Int) {
         let providers = prefs.enabledProviders
         guard index < providers.count, let rail = railPanel,
@@ -199,33 +216,154 @@ final class NotchController {
         let originY = min(max(ringCenterY - height / 2, lowest), highest)
         let tailCenterY = (originY + height) - ringCenterY
 
+        let wasVisible = bubblePanel?.isVisible ?? false
+        if !wasVisible { bubbleGeneration += 1 }
         let content = NotchBubbleView(provider: provider,
                                       tailCenterY: tailCenterY,
                                       height: height,
-                                      tailOnRight: prefs.anchorOnRight)
-
-        let panel = bubblePanel ?? NotchPanel(
-            size: CGSize(width: width + pad * 2, height: height + pad * 2),
-            interactive: false
-        )
+                                      tailOnRight: prefs.anchorOnRight,
+                                      generation: bubbleGeneration)
+        let panel = bubblePanel ?? makeBubblePanel(
+            size: CGSize(width: width + pad * 2, height: height + pad * 2))
         bubblePanel = panel
 
-        if let hosting = panel.contentView as? NSHostingView<NotchBubbleView> {
-            hosting.rootView = content
-        } else {
-            panel.contentView = NSHostingView(rootView: content)
+        if let host = panel.contentView as? BubbleHostView {
+            host.bodyRect = { CGRect(x: pad, y: pad, width: width, height: height) }
+            if let hosting = host.subviews.first as? NSHostingView<NotchBubbleView> {
+                hosting.rootView = content
+            }
+            host.updateTrackingAreas()
         }
 
         // The panel is inflated on every side so the shadow has somewhere to go;
         // the shape itself still lands exactly where the geometry above put it.
-        panel.setFrame(CGRect(x: originX - pad, y: originY - pad,
-                              width: width + pad * 2, height: height + pad * 2),
-                       display: true)
-        panel.orderFrontRegardless()
+        let frame = CGRect(x: originX - pad, y: originY - pad,
+                           width: width + pad * 2, height: height + pad * 2)
+        bubbleBodyFrame = CGRect(x: originX, y: originY, width: width, height: height)
+
+        if wasVisible {
+            // Sliding between rings: glide, don't teleport.
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.22
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().setFrame(frame, display: true)
+            }
+        } else {
+            panel.setFrame(frame, display: true)
+            panel.alphaValue = 0
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.16
+                panel.animator().alphaValue = 1
+            }
+        }
+        startMouseMonitor()
+    }
+
+    private func makeBubblePanel(size: CGSize) -> NotchPanel {
+        let panel = NotchPanel(size: size, interactive: true)
+        let host = BubbleHostView()
+        host.onHoverChange = { [weak self] inside in
+            Task { @MainActor in
+                guard let self else { return }
+                if inside {
+                    self.hideWorkItem?.cancel()
+                    self.triangleApex = nil
+                } else {
+                    self.scheduleHide(after: 0.25)
+                }
+            }
+        }
+        let hosting = NSHostingView(rootView: NotchBubbleView(
+            provider: .claude, tailCenterY: 0, height: 0, tailOnRight: true,
+            generation: 0))
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        host.addSubview(hosting)
+        NSLayoutConstraint.activate([
+            hosting.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+            hosting.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+            hosting.topAnchor.constraint(equalTo: host.topAnchor),
+            hosting.bottomAnchor.constraint(equalTo: host.bottomAnchor)
+        ])
+        panel.contentView = host
+        return panel
     }
 
     private func hideBubble() {
-        bubblePanel?.orderOut(nil)
+        stopMouseMonitor()
+        triangleApex = nil
+        triangleDeadline = nil
+        guard let panel = bubblePanel, panel.isVisible else { return }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.12
+            panel.animator().alphaValue = 0
+        }, completionHandler: {
+            panel.orderOut(nil)
+            panel.alphaValue = 1
+        })
+    }
+
+    // MARK: - Safe triangle
+    //
+    // The classic submenu trick: when the pointer leaves the rail heading for
+    // the bubble, the triangle between its exit point and the bubble's near
+    // corners is safe ground — the bubble stays open while the pointer crosses
+    // it. Without this, the gap between rail and bubble closes the bubble the
+    // moment the pointer sets out.
+
+    private func startMouseMonitor() {
+        guard mouseMonitor == nil else { return }
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+            Task { @MainActor in self?.assessPointer(NSEvent.mouseLocation) }
+        }
+    }
+
+    private func stopMouseMonitor() {
+        if let monitor = mouseMonitor { NSEvent.removeMonitor(monitor) }
+        mouseMonitor = nil
+    }
+
+    private func assessPointer(_ location: NSPoint) {
+        guard let panel = bubblePanel, panel.isVisible else { return }
+
+        // On home ground — rail or bubble — nothing to assess. (Their own
+        // tracking areas already manage hover; the monitor only sees events
+        // that miss our windows anyway.)
+        if bubbleBodyFrame.contains(location) { return }
+        if let rail = railPanel, rail.frame.contains(location) { return }
+
+        if let apex = triangleApex,
+           Self.point(location, inTriangleWith: apex,
+                      corners: nearCorners(of: bubbleBodyFrame)) {
+            // Crossing the safe triangle: keep the bubble open, but not forever.
+            if let deadline = triangleDeadline {
+                if Date() > deadline { scheduleHide(after: 0) }
+            } else {
+                triangleDeadline = Date().addingTimeInterval(0.9)
+                hideWorkItem?.cancel()
+            }
+            return
+        }
+        scheduleHide(after: 0.1)
+    }
+
+    /// The two corners of the bubble on the side facing the rail.
+    private func nearCorners(of body: CGRect) -> (NSPoint, NSPoint) {
+        let x = prefs.anchorOnRight ? body.maxX : body.minX
+        return (NSPoint(x: x, y: body.minY), NSPoint(x: x, y: body.maxY))
+    }
+
+    private static func point(_ p: NSPoint, inTriangleWith apex: NSPoint,
+                              corners: (NSPoint, NSPoint)) -> Bool {
+        func cross(_ a: NSPoint, _ b: NSPoint, _ c: NSPoint) -> CGFloat {
+            (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+        }
+        let d1 = cross(apex, corners.0, p)
+        let d2 = cross(corners.0, corners.1, p)
+        let d3 = cross(corners.1, apex, p)
+        let hasNegative = d1 < 0 || d2 < 0 || d3 < 0
+        let hasPositive = d1 > 0 || d2 > 0 || d3 > 0
+        return !(hasNegative && hasPositive)
     }
 
     private func openSettings() {
@@ -243,6 +381,15 @@ struct NotchBubbleView: View {
     let height: CGFloat
     let tailOnRight: Bool
 
+    /// Bumped by the controller on every fresh appearance. The hosting view
+    /// stays mounted while the panel is hidden, so `onAppear` alone would only
+    /// ever animate the first entrance.
+    let generation: Int
+
+    /// Drives the entrance: the bubble springs out of its tail rather than
+    /// popping into place.
+    @State private var appeared = false
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 20)) { context in
             UsageBubbleView(provider: provider,
@@ -251,6 +398,20 @@ struct NotchBubbleView: View {
                             height: height,
                             tailOnRight: tailOnRight,
                             now: context.date)
+        }
+        .scaleEffect(appeared ? 1 : 0.92,
+                     anchor: tailOnRight
+                        ? UnitPoint(x: 1, y: 0.5)
+                        : UnitPoint(x: 0, y: 0.5))
+        .opacity(appeared ? 1 : 0)
+        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: appeared)
+        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: tailCenterY)
+        .onAppear { appeared = true }
+        .onChange(of: generation) {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { appeared = false }
+            DispatchQueue.main.async { appeared = true }
         }
         .padding(Theme.bubbleShadowPad)   // room for the shadow to fade out
         .allowsHitTesting(false)

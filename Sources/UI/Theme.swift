@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 enum Theme {
 
@@ -32,11 +33,38 @@ enum Theme {
     static let shadowRadius: CGFloat = 14
 
     // MARK: - Colours
+    //
+    // Computed, not stored: they follow the theme preference, and — on the
+    // "system" setting — the system appearance. Reading them inside a SwiftUI
+    // body registers the observation, so views repaint when either changes.
 
-    static let surface = Color.black
-    static let track = Color.white.opacity(0.16)
-    static let primaryText = Color.white
-    static let secondaryText = Color.white.opacity(0.62)
+    /// Whether the widget currently renders dark.
+    static var isDark: Bool {
+        switch Preferences.shared.theme {
+        case "light": return false
+        case "dark": return true
+        default:
+            _ = Preferences.shared.appearanceTick // subscribe to system flips
+            return NSApp.effectiveAppearance
+                .bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        }
+    }
+
+    static var surface: Color {
+        isDark ? .black : .white
+    }
+    static var track: Color {
+        isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.13)
+    }
+    static var primaryText: Color {
+        isDark ? .white : Color.black.opacity(0.88)
+    }
+    static var secondaryText: Color {
+        isDark ? Color.white.opacity(0.62) : Color.black.opacity(0.5)
+    }
+    static var shadowColor: Color {
+        Color.black.opacity(isDark ? 0.5 : 0.28)
+    }
 
     /// In the reference design 21% is green, 52% yellow, 73% red: the colour
     /// reports the state, not the provider's brand.

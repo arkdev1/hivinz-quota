@@ -55,10 +55,10 @@ actor AnthropicOAuthSource {
     private lazy var lastGood: (windows: [UsageWindow], at: Date)? = Self.loadCache()
     private var retryAfter: Date = .distantPast
 
-    func fetchWindows() async throws -> [UsageWindow] {
+    func fetchWindows(force: Bool = false) async throws -> [UsageWindow] {
         let now = Date()
         if let cached = lastGood,
-           now < retryAfter || now.timeIntervalSince(cached.at) < minInterval {
+           now < retryAfter || (!force && now.timeIntervalSince(cached.at) < minInterval) {
             return cached.windows
         }
         guard now >= retryAfter else { throw Failure.http(429) }

@@ -21,6 +21,12 @@ final class Preferences {
     var useNotchAnchor: Bool { didSet { save(useNotchAnchor, "useNotchAnchor") } }
     /// How far below the menu bar the rail has been dragged.
     var verticalOffset: Double { didSet { save(verticalOffset, "verticalOffset") } }
+    /// Visual theme: "system", "dark" or "light".
+    var theme: String { didSet { save(theme, "theme") } }
+    /// Bumped when the system appearance flips, so views reading Theme colours
+    /// under the "system" setting know to repaint. Never persisted.
+    var appearanceTick: Int = 0
+
     /// Allow estimating usage by reading local CLI transcripts when a provider's
     /// API path is unavailable. Off by default: it costs a filesystem scan and
     /// only ever produces an approximation.
@@ -52,6 +58,7 @@ final class Preferences {
         useNotchAnchor = d.object(forKey: "useNotchAnchor") as? Bool ?? false
         verticalOffset = d.object(forKey: "verticalOffset") as? Double ?? 0
         allowLocalEstimate = d.object(forKey: "allowLocalEstimate") as? Bool ?? false
+        theme = d.string(forKey: "theme") ?? "system"
     }
 
     var enabledProviders: [Provider] {

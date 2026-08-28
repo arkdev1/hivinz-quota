@@ -40,6 +40,7 @@ private struct ProvidersPane: View {
                     }
                 }
                 Button("Refresh Now") { Task { await store.refresh() } }
+                Button("Force Refresh") { Task { await store.refresh(force: true) } }
             }
 
             Section {
@@ -147,6 +148,16 @@ private struct AppearancePane: View {
                     get: { prefs.useNotchAnchor }, set: { prefs.useNotchAnchor = $0 }))
             }
 
+            Section("Theme") {
+                Picker("Appearance", selection: Binding(
+                    get: { prefs.theme }, set: { prefs.theme = $0 })) {
+                    Text("System").tag("system")
+                    Text("Dark").tag("dark")
+                    Text("Light").tag("light")
+                }
+                .pickerStyle(.segmented)
+            }
+
             Section("Colour thresholds") {
                 Slider(value: Binding(
                     get: { prefs.warningThreshold }, set: { prefs.warningThreshold = $0 }),
@@ -165,7 +176,7 @@ private struct AppearancePane: View {
                     Spacer()
                 }
                 .padding(8)
-                .background(Color.black, in: RoundedRectangle(cornerRadius: 10))
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10))
             }
 
             Section("Weekly reset") {

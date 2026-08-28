@@ -50,6 +50,11 @@ struct MenuBarContent: View {
         }
         .keyboardShortcut("r")
 
+        Button("Force Refresh") {
+            Task { await store.refresh(force: true) }
+        }
+        .keyboardShortcut("r", modifiers: [.command, .shift])
+
         Toggle("Show Widget", isOn: Binding(
             get: { prefs.showNotchWidget },
             set: { prefs.showNotchWidget = $0 }

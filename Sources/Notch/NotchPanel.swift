@@ -104,3 +104,38 @@ final class TrackingHostView: NSView {
         CGPoint(x: point.x, y: bounds.height - point.y)
     }
 }
+
+/// Hosts the bubble content. The bubble accepts hover — resting the pointer on
+/// it keeps it open — but only inside the bubble's body: everywhere else in the
+/// inflated shadow panel, clicks and hover fall through to what's underneath.
+final class BubbleHostView: NSView {
+
+    /// The bubble body, in AppKit view coordinates (origin bottom-left).
+    var bodyRect: () -> CGRect = { .zero }
+    var onHoverChange: (Bool) -> Void = { _ in }
+
+    private var tracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let area = NSTrackingArea(rect: bounds,
+                                  options: [.mouseEnteredAndExited, .mouseMoved,
+                                            .activeAlways, .inVisibleRect],
+                                  owner: self)
+        addTrackingArea(area)
+        tracking = area
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        return bodyRect().contains(local) ? self : nil
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        onHoverChange(bodyRect().contains(convert(event.locationInWindow, from: nil)))
+    }
+
+    override func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
+    override func mouseExited(with event: NSEvent) { onHoverChange(false) }
+}

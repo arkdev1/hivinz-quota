@@ -10,6 +10,9 @@ struct SourceConfig: Sendable {
     /// Whether a provider may fall back to reading local logs when its API path
     /// is unavailable. Off by default: that fallback scans transcripts.
     var allowLocalEstimate: Bool = false
+    /// A user-initiated refresh: skip freshness caches, but never a 429 cooldown
+    /// — being rate limited is a fact about the server, not about our cache.
+    var force: Bool = false
 }
 
 protocol UsageSource: Sendable {

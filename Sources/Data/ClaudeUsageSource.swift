@@ -15,7 +15,7 @@ actor ClaudeUsageSource: UsageSource {
 
     func fetch(config: SourceConfig) async -> ProviderState {
         do {
-            let windows = try await remote.fetchWindows()
+            let windows = try await remote.fetchWindows(force: config.force)
             return .ready(UsageSnapshot(providerID: providerID,
                                         windows: windows,
                                         fetchedAt: Date()))

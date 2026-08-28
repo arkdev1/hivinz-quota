@@ -41,7 +41,7 @@ final class UsageStore {
         states[id] ?? .loading
     }
 
-    func refresh() async {
+    func refresh(force: Bool = false) async {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
@@ -52,7 +52,8 @@ final class UsageStore {
         await withTaskGroup(of: (Provider.ID, ProviderState).self) { group in
             for provider in providers {
                 guard let source = sources[provider.id] else { continue }
-                let config = prefs.config(for: provider)
+                var config = prefs.config(for: provider)
+                config.force = force
                 group.addTask {
                     (provider.id, await source.fetch(config: config))
                 }
