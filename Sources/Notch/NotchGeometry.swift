@@ -50,12 +50,12 @@ struct NotchGeometry {
                      verticalOffset: CGFloat) -> CGPoint {
         if useNotchAnchor, let notch = notchRect {
             // Hanging from the notch: always touching it — a dragged offset
-            // would leave the flares merging into thin air. The body's right
-            // side continues the notch's right edge; the flares overhang by
-            // their reach on both sides.
+            // would leave the flares merging into thin air. The whole shape,
+            // flares included, stays inside the notch's width: overhanging its
+            // corner would put a black flare on the light menu bar.
             let x = anchorOnRight
-                ? notch.maxX + Theme.concaveRadius - panelSize.width
-                : notch.minX - Theme.concaveRadius
+                ? notch.maxX - panelSize.width
+                : notch.minX
             return CGPoint(x: x, y: topEdge - panelSize.height)
         }
 

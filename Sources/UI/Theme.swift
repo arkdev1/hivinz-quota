@@ -11,6 +11,11 @@ enum Theme {
     /// curves — small radii read as a chip in the corner rather than a melt.
     static let concaveRadius: CGFloat = 20
     static let convexRadius: CGFloat = 26
+    /// The notch-hanging flares are their own size: the edge fillets' 20pt on
+    /// both sides of a 54pt body reads as a funnel, not a melt. Slightly taller
+    /// than wide, like the notch's own corners.
+    static let notchFlareWidth: CGFloat = 11
+    static let notchFlareHeight: CGFloat = 16
     static let ringSize: CGFloat = 34
     static let ringLineWidth: CGFloat = 3.5
     static let ringToLabel: CGFloat = 5

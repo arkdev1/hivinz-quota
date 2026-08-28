@@ -27,11 +27,11 @@ struct RailMetrics {
     }
 
     var railTotalWidth: CGFloat {
-        notchMode ? Theme.railWidth + 2 * Theme.concaveRadius : Theme.railWidth
+        notchMode ? Theme.railWidth + 2 * Theme.notchFlareWidth : Theme.railWidth
     }
 
     /// Horizontal inset of the body inside the panel.
-    var sideInset: CGFloat { notchMode ? Theme.concaveRadius : 0 }
+    var sideInset: CGFloat { notchMode ? Theme.notchFlareWidth : 0 }
 
     /// Vertical centre of ring i, measured from the top of the rail.
     func ringCenterY(_ index: Int) -> CGFloat {

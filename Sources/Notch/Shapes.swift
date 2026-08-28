@@ -64,28 +64,31 @@ struct NotchRailShape: Shape {
 
     /// Hanging from the notch: the whole top edge merges into the notch bottom,
     /// with a concave flare climbing into it on *both* sides, and the free end
-    /// rounded. The body is inset by the flare's reach on either side.
+    /// rounded. The flares are taller than they are wide — the proportion of
+    /// the notch's own corners — and deliberately small: this join reads as a
+    /// melt only when it stays close to the body.
     private func notchPath(in rect: CGRect) -> Path {
         var path = Path()
-        let c = min(concave, rect.width / 4, rect.height / 3)
-        let v = min(convex, (rect.width - 2 * c) / 2, (rect.height - c) / 2)
+        let fw = min(Theme.notchFlareWidth, rect.width / 5)
+        let fh = min(Theme.notchFlareHeight, rect.height / 4)
+        let v = min(convex, (rect.width - 2 * fw) / 2, (rect.height - fh) / 2)
 
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addCurve(to: CGPoint(x: rect.minX + c, y: rect.minY + c),
-                      control1: CGPoint(x: rect.minX + c * 0.55, y: rect.minY),
-                      control2: CGPoint(x: rect.minX + c, y: rect.minY + c * 0.45))
-        path.addLine(to: CGPoint(x: rect.minX + c, y: rect.maxY - v))
-        path.addCurve(to: CGPoint(x: rect.minX + c + v, y: rect.maxY),
-                      control1: CGPoint(x: rect.minX + c, y: rect.maxY - v * 0.45),
-                      control2: CGPoint(x: rect.minX + c + v * 0.45, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX - c - v, y: rect.maxY))
-        path.addCurve(to: CGPoint(x: rect.maxX - c, y: rect.maxY - v),
-                      control1: CGPoint(x: rect.maxX - c - v * 0.45, y: rect.maxY),
-                      control2: CGPoint(x: rect.maxX - c, y: rect.maxY - v * 0.45))
-        path.addLine(to: CGPoint(x: rect.maxX - c, y: rect.minY + c))
+        path.addCurve(to: CGPoint(x: rect.minX + fw, y: rect.minY + fh),
+                      control1: CGPoint(x: rect.minX + fw * 0.55, y: rect.minY),
+                      control2: CGPoint(x: rect.minX + fw, y: rect.minY + fh * 0.45))
+        path.addLine(to: CGPoint(x: rect.minX + fw, y: rect.maxY - v))
+        path.addCurve(to: CGPoint(x: rect.minX + fw + v, y: rect.maxY),
+                      control1: CGPoint(x: rect.minX + fw, y: rect.maxY - v * 0.45),
+                      control2: CGPoint(x: rect.minX + fw + v * 0.45, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.maxX - fw - v, y: rect.maxY))
+        path.addCurve(to: CGPoint(x: rect.maxX - fw, y: rect.maxY - v),
+                      control1: CGPoint(x: rect.maxX - fw - v * 0.45, y: rect.maxY),
+                      control2: CGPoint(x: rect.maxX - fw, y: rect.maxY - v * 0.45))
+        path.addLine(to: CGPoint(x: rect.maxX - fw, y: rect.minY + fh))
         path.addCurve(to: CGPoint(x: rect.maxX, y: rect.minY),
-                      control1: CGPoint(x: rect.maxX - c, y: rect.minY + c * 0.45),
-                      control2: CGPoint(x: rect.maxX - c * 0.55, y: rect.minY))
+                      control1: CGPoint(x: rect.maxX - fw, y: rect.minY + fh * 0.45),
+                      control2: CGPoint(x: rect.maxX - fw * 0.55, y: rect.minY))
         path.closeSubpath() // straight run along the notch bottom
         return path
     }
