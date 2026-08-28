@@ -57,7 +57,8 @@ final class NotchController {
         }
 
         let geometry = targetScreen().map(NotchGeometry.init)
-        prefs.notchModeActive = prefs.useNotchAnchor && (geometry?.hasNotch ?? false)
+        let notchActive = prefs.useNotchAnchor && (geometry?.hasNotch ?? false)
+        if prefs.notchModeActive != notchActive { prefs.notchModeActive = notchActive }
         let previousHeight = laidOutHeight
         metrics = RailMetrics(itemCount: providers.count,
                               notchMode: prefs.notchModeActive,
@@ -90,9 +91,13 @@ final class NotchController {
         let size = CGSize(width: metrics.railTotalWidth, height: metrics.railHeight)
 
         // Re-clamp: a taller rail restored near the bottom of the screen would
-        // otherwise hang off the edge.
-        prefs.verticalOffset = min(max(prefs.verticalOffset, 0),
-                                   geometry.maxVerticalOffset(railHeight: metrics.railHeight))
+        // otherwise hang off the edge. Write only on change — @Observable
+        // notifies on every assignment, and the preference tracker rebuilds on
+        // notification, so an unconditional write here is an infinite rebuild
+        // loop that shows up as the whole rail flickering.
+        let clamped = min(max(prefs.verticalOffset, 0),
+                          geometry.maxVerticalOffset(railHeight: metrics.railHeight))
+        if clamped != prefs.verticalOffset { prefs.verticalOffset = clamped }
 
         let origin = geometry.panelOrigin(panelSize: size,
                                           railTotalWidth: metrics.railTotalWidth,
@@ -169,6 +174,7 @@ final class NotchController {
         hideWorkItem?.cancel()
         guard let index, index < prefs.enabledProviders.count else {
             showWorkItem?.cancel()
+            pendingShowIndex = nil
             // Leaving the rail doesn't close the bubble by itself: the pointer
             // may be on its way over there. Remember where it left, and let the
             // safe-triangle monitor decide.
@@ -176,14 +182,20 @@ final class NotchController {
             scheduleHide(after: 0.5) // fallback if the monitor never fires
             return
         }
-        hover.hoveredIndex = index
+        // mouseMoved fires for every pixel of travel. Re-assigning the same
+        // hover index or re-showing the same bubble on each one repaints and
+        // re-animates continuously — visible as flicker — so every step below
+        // is guarded to run only on an actual change.
+        if hover.hoveredIndex != index { hover.hoveredIndex = index }
 
-        // Already open: switching rings is instant. Opening fresh waits a beat,
-        // so sweeping the pointer across the rail doesn't flash the bubble.
         if bubblePanel?.isVisible == true {
+            guard shownIndex != index else { return }
             showWorkItem?.cancel()
             showBubble(for: index)
-        } else {
+        } else if pendingShowIndex != index {
+            // Opening fresh waits a beat, so sweeping the pointer across the
+            // rail doesn't flash the bubble.
+            pendingShowIndex = index
             showWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in self?.showBubble(for: index) }
             showWorkItem = work
@@ -223,12 +235,13 @@ final class NotchController {
         let geometry = NotchGeometry(screen: screen)
         let grab = dragGrabOffset ?? metrics.railHeight / 2
 
-        let offset = geometry.topEdge - (location.y + grab)
-        prefs.verticalOffset = min(max(offset, 0),
-                                   geometry.maxVerticalOffset(railHeight: metrics.railHeight))
+        let offset = min(max(geometry.topEdge - (location.y + grab), 0),
+                         geometry.maxVerticalOffset(railHeight: metrics.railHeight))
+        if offset != prefs.verticalOffset { prefs.verticalOffset = offset }
 
         // Dragging past the middle of the screen flips the rail to the other edge.
-        prefs.anchorOnRight = location.x > screen.frame.midX
+        let onRight = location.x > screen.frame.midX
+        if onRight != prefs.anchorOnRight { prefs.anchorOnRight = onRight }
 
         reposition()
     }
@@ -237,6 +250,10 @@ final class NotchController {
 
     /// Where the pointer last left the rail: the apex of the safe triangle.
     private var triangleApex: NSPoint?
+    /// Which ring the visible bubble belongs to, and which one a debounced
+    /// open is pending for.
+    private var shownIndex: Int?
+    private var pendingShowIndex: Int?
     /// The bubble body in screen coordinates, while visible.
     private var bubbleBodyFrame: CGRect = .zero
     private var mouseMonitor: Any?
@@ -344,6 +361,8 @@ final class NotchController {
                 panel.animator().alphaValue = 1
             }
         }
+        shownIndex = index
+        pendingShowIndex = nil
         startMouseMonitor()
     }
 
@@ -386,6 +405,8 @@ final class NotchController {
         stopMouseMonitor()
         triangleApex = nil
         triangleDeadline = nil
+        shownIndex = nil
+        pendingShowIndex = nil
         guard let panel = bubblePanel, panel.isVisible else { return }
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.12
