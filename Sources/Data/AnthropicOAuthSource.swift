@@ -52,8 +52,17 @@ actor AnthropicOAuthSource {
 
     private let minInterval: TimeInterval = 60
     private let defaultCooldown: TimeInterval = 5 * 60
+    /// How long the last good reading may stand in for a failing fetch. The
+    /// reset dates are absolute, so a stale reading still counts down — it just
+    /// slowly under-reports usage, which beats nagging about logins.
+    private let staleGrace: TimeInterval = 3 * 3600
     private lazy var lastGood: (windows: [UsageWindow], at: Date)? = Self.loadCache()
     private var retryAfter: Date = .distantPast
+    /// Keychain reads are the expensive part — each one can pop a permission
+    /// prompt, and Claude Code rewrites the item when it rotates the token,
+    /// which resets any one-off approval. So credentials are read once and held
+    /// until they expire or the server rejects them.
+    private var cachedCredentials: Credentials?
 
     func fetchWindows(force: Bool = false) async throws -> [UsageWindow] {
         let now = Date()
@@ -63,17 +72,31 @@ actor AnthropicOAuthSource {
         }
         guard now >= retryAfter else { throw Failure.http(429) }
 
-        guard let credentials = Self.keychainCredentials() else { throw Failure.noCredentials }
-        guard !credentials.isExpired else { throw Failure.expired }
+        do {
+            return try await refresh(now: now)
+        } catch {
+            // A failing fetch — expired token, missing credentials, network —
+            // does not blank a reading that was fine minutes ago. Serve the
+            // cached one through the grace window and surface the error only
+            // once there is truly nothing to show.
+            if let cached = lastGood, now.timeIntervalSince(cached.at) < staleGrace {
+                return cached.windows
+            }
+            throw error
+        }
+    }
 
-        var request = URLRequest(url: endpoint)
-        request.timeoutInterval = 12
-        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+    private func refresh(now: Date) async throws -> [UsageWindow] {
+        let credentials = try currentCredentials()
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw Failure.malformed }
+        var (data, http) = try await call(token: credentials.accessToken)
+        if http.statusCode == 401 {
+            // Claude Code rotated the token under us: re-read the keychain
+            // once and retry before declaring the session dead.
+            cachedCredentials = nil
+            let fresh = try currentCredentials()
+            (data, http) = try await call(token: fresh.accessToken)
+        }
 
         if http.statusCode == 429 {
             let hinted = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init)
@@ -81,6 +104,7 @@ actor AnthropicOAuthSource {
             if let cached = lastGood { return cached.windows }
             throw Failure.http(429)
         }
+        if http.statusCode == 401 { throw Failure.expired }
         guard (200..<300).contains(http.statusCode) else { throw Failure.http(http.statusCode) }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw Failure.malformed
@@ -92,6 +116,26 @@ actor AnthropicOAuthSource {
         retryAfter = .distantPast
         Self.storeCache(windows)
         return windows
+    }
+
+    private func currentCredentials() throws -> Credentials {
+        if let held = cachedCredentials, !held.isExpired { return held }
+        cachedCredentials = nil
+        guard let read = Self.keychainCredentials() else { throw Failure.noCredentials }
+        guard !read.isExpired else { throw Failure.expired }
+        cachedCredentials = read
+        return read
+    }
+
+    private func call(token: String) async throws -> (Data, HTTPURLResponse) {
+        var request = URLRequest(url: endpoint)
+        request.timeoutInterval = 12
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw Failure.malformed }
+        return (data, http)
     }
 
     // MARK: - Reading cache
@@ -122,7 +166,7 @@ actor AnthropicOAuthSource {
         else { return nil }
 
         let at = Date(timeIntervalSince1970: epoch)
-        guard Date().timeIntervalSince(at) < 3600 else { return nil }
+        guard Date().timeIntervalSince(at) < 3 * 3600 else { return nil }
 
         let windows = raw.compactMap { item -> UsageWindow? in
             guard let id = item["id"] as? String,

@@ -19,6 +19,9 @@ final class Preferences {
     var anchorOnRight: Bool { didSet { save(anchorOnRight, "anchorOnRight") } }
     /// When true the rail latches onto the notch instead of the screen edge.
     var useNotchAnchor: Bool { didSet { save(useNotchAnchor, "useNotchAnchor") } }
+    /// Which display carries the rail, by localized name. nil = automatic:
+    /// the notched screen if there is one, the main screen otherwise.
+    var preferredScreenName: String? { didSet { save(preferredScreenName ?? "", "preferredScreenName") } }
     /// Collapsed to a stub. Click it to bring the rings back.
     var isMinimized: Bool { didSet { save(isMinimized, "isMinimized") } }
     /// How far below the menu bar the rail has been dragged.
@@ -62,6 +65,8 @@ final class Preferences {
         showNotchWidget = d.object(forKey: "showNotchWidget") as? Bool ?? true
         anchorOnRight = d.object(forKey: "anchorOnRight") as? Bool ?? true
         useNotchAnchor = d.object(forKey: "useNotchAnchor") as? Bool ?? false
+        let screenName = d.string(forKey: "preferredScreenName") ?? ""
+        preferredScreenName = screenName.isEmpty ? nil : screenName
         isMinimized = d.object(forKey: "isMinimized") as? Bool ?? false
         verticalOffset = d.object(forKey: "verticalOffset") as? Double ?? 0
         allowLocalEstimate = d.object(forKey: "allowLocalEstimate") as? Bool ?? false

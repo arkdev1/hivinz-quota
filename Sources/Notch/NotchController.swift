@@ -42,6 +42,7 @@ final class NotchController {
             _ = prefs.verticalOffset
             _ = prefs.showNotchWidget
             _ = prefs.isMinimized
+            _ = prefs.preferredScreenName
         } onChange: {
             Task { @MainActor [weak self] in self?.rebuild() }
         }
@@ -123,7 +124,15 @@ final class NotchController {
     }
 
     private func targetScreen() -> NSScreen? {
-        NSScreen.screens.first(where: { NotchGeometry(screen: $0).hasNotch }) ?? NSScreen.main
+        // An explicit choice wins while that display is connected; otherwise
+        // fall back to the automatic pick so unplugging the chosen monitor
+        // brings the rail home instead of losing it.
+        if let name = prefs.preferredScreenName,
+           let chosen = NSScreen.screens.first(where: { $0.localizedName == name }) {
+            return chosen
+        }
+        return NSScreen.screens.first(where: { NotchGeometry(screen: $0).hasNotch })
+            ?? NSScreen.main
     }
 
     // MARK: - Rail
@@ -228,6 +237,12 @@ final class NotchController {
     }
 
     private func drag(to location: NSPoint) {
+        // Dragging across displays carries the rail along: whichever screen
+        // holds the pointer becomes the preferred one.
+        let under = NSScreen.screens.first { NSMouseInRect(location, $0.frame, false) }
+        if let under, under != targetScreen() {
+            prefs.preferredScreenName = under.localizedName
+        }
         guard let screen = targetScreen() else { return }
         // Dragging a notch-hung rail unhooks it: from there it behaves like an
         // edge-attached rail again. rebuild() follows via the preference change.

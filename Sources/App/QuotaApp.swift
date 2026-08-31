@@ -82,7 +82,7 @@ struct MenuBarContent: View {
     private func line(for provider: Provider) -> String {
         switch store.state(for: provider.id) {
         case .ready(let snapshot):
-            guard let window = snapshot.headline else { return "\(provider.displayName): —" }
+            guard let window = snapshot.primary else { return "\(provider.displayName): —" }
             return "\(provider.displayName): \(window.percentText) · \(window.resetText())"
         case .loading:
             return "\(provider.displayName): reading…"

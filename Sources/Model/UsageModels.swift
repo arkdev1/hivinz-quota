@@ -56,7 +56,15 @@ struct UsageSnapshot: Equatable {
     let windows: [UsageWindow]
     let fetchedAt: Date
 
-    /// The window that drives the ring: whichever sits closest to its limit.
+    /// The window that drives the ring and the menu bar figure. Always the
+    /// session window when there is one: a ring that silently switches to
+    /// whichever window is worst reads as the number jumping around.
+    var primary: UsageWindow? {
+        windows.first(where: { $0.id == "session" }) ?? windows.first
+    }
+
+    /// The window closest to its limit — what the collapsed stub's colour and
+    /// severity decisions care about.
     var headline: UsageWindow? {
         windows.max(by: { $0.clampedFraction < $1.clampedFraction })
     }

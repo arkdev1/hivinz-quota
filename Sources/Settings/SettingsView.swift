@@ -212,7 +212,7 @@ private struct ProviderRow: View {
         guard current.isEnabled else { return "Disabled" }
         switch store.state(for: provider.id) {
         case .ready(let snapshot):
-            guard let window = snapshot.headline else { return "No data" }
+            guard let window = snapshot.primary else { return "No data" }
             return "\(window.percentText) used · \(window.resetText())"
         case .loading: return "Reading…"
         case .unavailable(let reason), .failed(let reason): return reason
@@ -271,6 +271,14 @@ private struct AppearancePane: View {
                 }
                 Toggle("Attach to the notch instead of the screen edge", isOn: Binding(
                     get: { prefs.useNotchAnchor }, set: { prefs.useNotchAnchor = $0 }))
+                Picker("Display", selection: Binding(
+                    get: { prefs.preferredScreenName ?? "" },
+                    set: { prefs.preferredScreenName = $0.isEmpty ? nil : $0 })) {
+                    Text("Automatic").tag("")
+                    ForEach(NSScreen.screens.map(\.localizedName), id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
                 LabeledContent("Position") {
                     Text("Drag the rail up and down; drag it across the screen "
                          + "to switch sides.")

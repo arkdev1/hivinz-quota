@@ -70,7 +70,7 @@ struct NotchRailView: View {
     }
 
     private func item(_ provider: Provider, index: Int, metrics: RailMetrics) -> some View {
-        let window = store.state(for: provider.id).snapshot?.headline
+        let window = store.state(for: provider.id).snapshot?.primary
         return VStack(spacing: Theme.ringToLabel) {
             RingGauge(fraction: window?.clampedFraction ?? 0,
                       glyph: provider.glyph,
